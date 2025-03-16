@@ -43,11 +43,10 @@ Resources:
             #Hourly put data to S3
             cat <<EOF > /usr/local/bin/upload_to_s3.sh
             #!/bin/bash
-            FILE="/athenafolder/out.txt"
-            bcp orders out "/athenafolder/out.txt" -c -u -U sa -P praktyka -S ${RDSENDPOINT} -d Microsoft.eShopOnWeb.CatalogDb
+            bcp orders out /athenafolder/out.txt -c -u -U sa -P praktyka -S ${RDSENDPOINT} -d Microsoft.eShopOnWeb.CatalogDb
             
             if [ -f "/athenafolder/out.txt" ]; then
-              aws s3 cp "/athenafolder/out.txt" ${BUCKET}/
+              aws s3 cp /athenafolder/out.txt s3://${BUCKET}/
               echo "$(date) - Uploaded /athenafolder/out.txt to ${BUCKET}/" >> /var/log/s3_upload.log
             else
               echo "$(date) - File not found: /athenafolder/out.txt" >> /var/log/s3_upload.log
@@ -130,13 +129,27 @@ Resources:
           Value: AutoScaledInstance
           PropagateAtLaunch: true
 
-  ScalingPolicy:
+  ScaleOutPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       AutoScalingGroupName: !Ref myAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
-        TargetValue: 5000  # Adjust this based on expected request volume
+        TargetValue: 5000  
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Join 
+            - '/' 
+            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt myALBTargetGroup.TargetGroupFullName
+
+  ScaleInPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref myAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        TargetValue: 500 
         PredefinedMetricSpecification:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
