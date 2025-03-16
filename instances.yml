@@ -1,0 +1,194 @@
+Description: Instances for the VPC in AutoScalingGroup
+
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+
+Resources:
+  myLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref LatestAmiId
+        InstanceType: t2.small
+        KeyName: vockey
+        IamInstanceProfile: 
+          Name : LabInstanceProfile
+        
+        SecurityGroupIds:
+          - !ImportValue Networking:MySecurityGroup
+        UserData:
+          Fn::Base64: !Sub 
+          - |
+            #!/bin/bash
+            #EFS
+            yum update -y
+            mkdir -p -m 777 /mnt/efs
+            mount -t nfs4 ${EFS}:/ /mnt/efs
+            chmod -R 777 mnt/
+
+            #BCP
+            curl https://packages.microsoft.com/config/rhel/9/prod.repo | sudo tee /etc/yum.repos.d/mssql-release.repo
+            yum remove mssql-tools unixODBC-utf16 unixODBC-utf16-devel
+            export ACCEPT_EULA=Y
+            yes | yum install -y mssql-tools18 unixODBC-devel
+            yum check-update
+            yum update mssql-tools18
+            echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
+            source ~/.bashrc
+            cd /
+            mkdir -m 777 athenafolder
+            
+            #Hourly put data to S3
+            cat <<EOF > /usr/local/bin/upload_to_s3.sh
+            #!/bin/bash
+            FILE="/athenafolder/out.txt"
+            bcp orders out "/athenafolder/out.txt" -c -u -U sa -P praktyka -S ${RDSENDPOINT} -d Microsoft.eShopOnWeb.CatalogDb
+            
+            if [ -f "/athenafolder/out.txt" ]; then
+              aws s3 cp "/athenafolder/out.txt" ${BUCKET}/
+              echo "$(date) - Uploaded /athenafolder/out.txt to ${BUCKET}/" >> /var/log/s3_upload.log
+            else
+              echo "$(date) - File not found: /athenafolder/out.txt" >> /var/log/s3_upload.log
+            fi
+            EOF
+
+            chmod +x /usr/local/bin/upload_to_s3.sh
+
+            cat <<EOF > /etc/systemd/system/upload-to-s3.service
+            [Unit]
+            Description=Upload data to S3
+            After=network.target
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/upload_to_s3.sh
+            EOF
+
+            # Create a systemd timer to run the service every hour
+            cat <<EOF > /etc/systemd/system/upload-to-s3.timer
+            [Unit]
+            Description=Run upload-to-s3.service every hour
+
+            [Timer]
+            OnCalendar=hourly
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+            EOF
+
+            # Reload systemd, enable and start the timer
+            systemctl daemon-reload
+            systemctl enable upload-to-s3.timer
+            systemctl start upload-to-s3.timer
+
+            #APP
+            yum install git -y
+            git clone https://github.com/looking4ward/CloudShirt.git
+            sed -i 's/Server.*CatalogDb;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;/' /CloudShirt/src/Web/appsettings.json
+            sed -i 's/Server.*Identity;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.Identity;/' /CloudShirt/src/Web/appsettings.json
+            yum install -y dotnet6.0
+            chmod -R 777 /CloudShirt
+            sudo -i -u ec2-user bash <<EOF
+              source ~/.bashrc  
+              cd /
+              dotnet tool install --global dotnet-ef --version 7.0.20
+              cd CloudShirt/src/Web/
+              dotnet restore
+              dotnet tool restore
+              dotnet ef database update -c catalogcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
+              dotnet ef database update -c appidentitydbcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
+              dotnet build
+              sudo dotnet run --urls "http://*:80" > /mnt/efs/log.txt
+            EOF
+
+          - EFS: !ImportValue MyEFS-DNS 
+            RDSENDPOINT: !ImportValue SSMS:MyDB
+            BUCKET: !ImportValue S3Athena:PartnerDataBucket
+
+
+  myAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !ImportValue Networking:MyFirstSubnet
+        - !ImportValue Networking:MySecondSubnet
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      # HealthCheckType: ELB
+      # HealthCheckGracePeriod: 300
+      TargetGroupARNs:
+        - !Ref myALBTargetGroup
+      Tags:
+        - Key: Name
+          Value: AutoScaledInstance
+          PropagateAtLaunch: true
+
+  ScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref myAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        TargetValue: 5000  # Adjust this based on expected request volume
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Join 
+            - '/' 
+            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt myALBTargetGroup.TargetGroupFullName
+
+  myApplicationLoadBalancer:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Name: myALB
+        Scheme: internet-facing
+        Type: application
+        SecurityGroups:
+          - !ImportValue Networking:MySecurityGroup
+        Subnets:
+          - !ImportValue Networking:MyFirstSubnet
+          - !ImportValue Networking:MySecondSubnet
+        Tags:
+          - Key: Name
+            Value: myLoadBalancer
+
+  # Create Target Group
+  myALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !ImportValue Networking:VPC
+      Protocol: HTTP
+      Port: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: 80
+      HealthCheckPath: "/"
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+
+  myALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref myApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref myALBTargetGroup
+
+
+# Define outputs so values can be imported in another template
+Outputs:
+  LoadBalancerDNS:
+    Description: "DNS name of the ALB"
+    Value: !GetAtt myApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", myApplicationLoadBalancer, DNS ] ]

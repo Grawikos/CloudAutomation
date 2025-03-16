@@ -1,0 +1,43 @@
+Description: SSMS
+
+Resources:  
+  MyDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SQL Server access
+      VpcId: !ImportValue Networking:VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1433
+          ToPort: 1433
+          CidrIp: 10.0.0.0/16
+  MyDBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: "Subnets for RDS"
+      SubnetIds:
+        - !ImportValue Networking:MyFirstSubnet
+        - !ImportValue Networking:MySecondSubnet
+  MyDB:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceIdentifier: mydbinstance
+      DBInstanceClass: db.t3.small
+      AllocatedStorage: 200
+      Engine: sqlserver-ex
+      MasterUsername: sa
+      MasterUserPassword: praktyka
+      PubliclyAccessible: false
+      VPCSecurityGroups:
+        - !Ref MyDBSecurityGroup
+      DBSubnetGroupName: !Ref MyDBSubnetGroup
+      LicenseModel: license-included
+      MonitoringInterval: 0
+
+Outputs:
+  RDSEndpoint:
+    Description: RDS instance endpoint to connect with SQL Server
+    Value: !GetAtt MyDB.Endpoint.Address
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", MyDB] ]
+    

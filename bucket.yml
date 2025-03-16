@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create an S3 bucket for partner data with access restricted to LabUser"
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: "athena-data-bucket"
+    Description: "Name of the S3 bucket to store exported data"
+
+  LabAccountID:
+    Type: String
+    Description: "Id of the only account"
+
+Resources:
+  
+  PartnerDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${BucketName}-${LabAccountID}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+
+
+Outputs:
+  Bucket:
+    Description: "S3 bucket for partner data"
+    Value: !Ref PartnerDataBucket
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", PartnerDataBucket ] ]
+  

@@ -1,0 +1,41 @@
+Description: efs
+
+
+Resources:
+  FileSystemResource:
+    Type: 'AWS::EFS::FileSystem'
+    Properties:
+      FileSystemTags:
+        - Key: Name
+          Value: TestFileSystem
+
+  MountTargetFirstSNet:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemResource
+      SubnetId: !ImportValue Networking:MyFirstSubnet
+      SecurityGroups: 
+        - !ImportValue Networking:MySecurityGroup 
+
+  MountTargetSecondSNet:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemResource
+      SubnetId: !ImportValue Networking:MySecondSubnet
+      SecurityGroups: 
+        - !ImportValue Networking:MySecurityGroup 
+
+
+Outputs: 
+  EFSIP1:
+    Description: "ip1"
+    Value: !GetAtt MountTargetFirstSNet.IpAddress
+  EFSIP2:
+    Description: "ip2"
+    Value: !GetAtt MountTargetSecondSNet.IpAddress
+
+  EFSDNSName:
+    Description: "EFS File System DNS Name"
+    Value: !Sub "${FileSystemResource}.efs.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: MyEFS-DNS
