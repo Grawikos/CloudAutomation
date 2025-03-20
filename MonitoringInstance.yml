@@ -6,11 +6,15 @@ Parameters:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
+
+Resources:
   MonitoringInstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow access from the Bastion Host
       VpcId: !ImportValue MyBase:VPC
+      IamInstanceProfile: 
+        Name : LabInstanceProfile
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -64,8 +68,10 @@ Parameters:
           yum install -y git
           yum install -y nfs-utils
 
-          mkdir -p /mnt/efs
-          mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${FileSystemID}.efs.us-east-1.amazonaws.com:/ mnt/efs
+          #EFS
+          mkdir -p -m 777 /mnt/efs
+          mount -t nfs4 ${EFS}:/ /mnt/efs
+          chmod -R 777 mnt/
 
           yum install -y java-11-amazon-corretto
           rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
@@ -139,8 +145,7 @@ Parameters:
           systemctl enable filebeat
           
 
-        - FileSystemID:
-            Fn::ImportValue: EFS:FileSystemID
+        - EFS: !ImportValue MyEFS-DNS 
 
 Outputs:
   PMonitoringInstancePublicIP:
