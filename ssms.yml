@@ -5,7 +5,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow SQL Server access
-      VpcId: !ImportValue Networking:VPC
+      VpcId: !ImportValue MyBase:VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 1433
@@ -16,8 +16,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnets for RDS"
       SubnetIds:
-        - !ImportValue Networking:MyFirstSubnet
-        - !ImportValue Networking:MySecondSubnet
+        - !ImportValue MyBase:MyFirstSubnet
+        - !ImportValue MyBase:MySecondSubnet
   MyDB:
     Type: 'AWS::RDS::DBInstance'
     Properties:

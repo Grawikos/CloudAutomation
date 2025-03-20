@@ -16,8 +16,8 @@ aws cloudformation wait stack-delete-complete --stack-name S3Athena
 aws cloudformation wait stack-delete-complete --stack-name SSMS
 aws cloudformation wait stack-delete-complete --stack-name EFS
 
-aws cloudformation delete-stack --stack-name Networking
-aws cloudformation wait stack-delete-complete --stack-name Networking
+aws cloudformation delete-stack --stack-name MyBase
+aws cloudformation wait stack-delete-complete --stack-name MyBase
 
 
 

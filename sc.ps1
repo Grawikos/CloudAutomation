@@ -4,8 +4,8 @@ if (!$userid) {
     $userid="089087866202"
 } 
 
-aws cloudformation create-stack --stack-name Networking --template-body file://networking.yml
-aws cloudformation wait stack-create-complete --stack-name Networking
+aws cloudformation create-stack --stack-name MyBase --template-body file://networking.yml
+aws cloudformation wait stack-create-complete --stack-name MyBase
 
 aws cloudformation create-stack --stack-name EFS --template-body file://efs.yml
 aws cloudformation create-stack --stack-name SSMS --template-body file://ssms.yml

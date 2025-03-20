@@ -17,7 +17,7 @@ Resources:
           Name : LabInstanceProfile
         
         SecurityGroupIds:
-          - !ImportValue Networking:MySecurityGroup
+          - !ImportValue MyBase:MySecurityGroup
         UserData:
           Fn::Base64: !Sub 
           - |
@@ -115,8 +115,8 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
-        - !ImportValue Networking:MyFirstSubnet
-        - !ImportValue Networking:MySecondSubnet
+        - !ImportValue MyBase:MyFirstSubnet
+        - !ImportValue MyBase:MySecondSubnet
       LaunchTemplate:
         LaunchTemplateId: !Ref myLaunchTemplate
         Version: !GetAtt myLaunchTemplate.LatestVersionNumber
@@ -167,10 +167,10 @@ Resources:
         Scheme: internet-facing
         Type: application
         SecurityGroups:
-          - !ImportValue Networking:MySecurityGroup
+          - !ImportValue MyBase:MySecurityGroup
         Subnets:
-          - !ImportValue Networking:MyFirstSubnet
-          - !ImportValue Networking:MySecondSubnet
+          - !ImportValue MyBase:MyFirstSubnet
+          - !ImportValue MyBase:MySecondSubnet
         Tags:
           - Key: Name
             Value: myLoadBalancer
@@ -179,7 +179,7 @@ Resources:
   myALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !ImportValue Networking:VPC
+      VpcId: !ImportValue MyBase:VPC
       Protocol: HTTP
       Port: 80
       HealthCheckProtocol: HTTP

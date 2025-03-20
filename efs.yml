@@ -13,17 +13,17 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref FileSystemResource
-      SubnetId: !ImportValue Networking:MyFirstSubnet
+      SubnetId: !ImportValue MyBase:MyFirstSubnet
       SecurityGroups: 
-        - !ImportValue Networking:MySecurityGroup 
+        - !ImportValue MyBase:MySecurityGroup 
 
   MountTargetSecondSNet:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref FileSystemResource
-      SubnetId: !ImportValue Networking:MySecondSubnet
+      SubnetId: !ImportValue MyBase:MySecondSubnet
       SecurityGroups: 
-        - !ImportValue Networking:MySecurityGroup 
+        - !ImportValue MyBase:MySecurityGroup 
 
 
 Outputs: 
