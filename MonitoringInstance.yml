@@ -64,10 +64,8 @@ Parameters:
           yum install -y git
           yum install -y nfs-utils
 
-          mkdir -p /efs
-          mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${FileSystemID}.efs.us-east-1.amazonaws.com:/ efs
-          
-          cp /var/log/cloud-init.log /efs/
+          mkdir -p /mnt/efs
+          mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${FileSystemID}.efs.us-east-1.amazonaws.com:/ mnt/efs
 
           yum install -y java-11-amazon-corretto
           rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
@@ -91,7 +89,6 @@ Parameters:
           systemctl start elasticsearch
 
           yum install logstash -y
-          cp /var/log/cloud-init.log /efs/
           cat > /etc/logstash/conf.d/logstash.conf <<EOF
           input {
             beats {
@@ -127,7 +124,7 @@ Parameters:
           
           yum install filebeat -y
           sed -i 's/  enabled: false/  enabled: true/' /etc/filebeat/filebeat.yml
-          sed -i '32s|.*|    - /efs/*.log|' /etc/filebeat/filebeat.yml
+          sed -i '32s|.*|    - mnt/efs/*.log|' /etc/filebeat/filebeat.yml
           sed -i 's|output.elasticsearch:|#output.elasticsearch:|' /etc/filebeat/filebeat.yml
           sed -i 's|  hosts:.*|  #hosts: ["localhost:9200"]|' /etc/filebeat/filebeat.yml
           sed -i 's|#output.logstash:|output.logstash:|' /etc/filebeat/filebeat.yml
