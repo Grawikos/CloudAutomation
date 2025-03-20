@@ -19,6 +19,13 @@ aws cloudformation wait stack-create-complete --stack-name S3Athena
 aws cloudformation create-stack --stack-name Instances --template-body file://instances.yml
 aws cloudformation wait stack-create-complete --stack-name Instances
 
+aws cloudformation create-stack --stack-name NAT --template-body file://NAT.yml
+aws cloudformation wait stack-create-complete --stack-name NAT
+
+aws cloudformation create-stack --stack-name MonitoringInstance --template-body file://MonitoringInstance.yml
+aws cloudformation wait stack-create-complete --stack-name MonitoringInstance
+
+
 echo "Link to the website:"
 echo "http://$(aws cloudformation describe-stacks --stack-name Instances --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' --output text)"
 

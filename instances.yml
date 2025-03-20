@@ -103,7 +103,7 @@ Resources:
               dotnet ef database update -c catalogcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
               dotnet ef database update -c appidentitydbcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
               dotnet build
-              sudo dotnet run --urls "http://*:80" > /mnt/efs/log.txt
+              sudo dotnet run --urls "http://*:80" > /mnt/efs/log.log
             EOF
 
           - EFS: !ImportValue MyEFS-DNS 
