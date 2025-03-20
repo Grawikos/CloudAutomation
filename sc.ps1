@@ -13,4 +13,7 @@ aws cloudformation wait stack-create-complete --stack-name S3Athena
 aws cloudformation create-stack --stack-name Instances --template-body file://instances.yml
 aws cloudformation wait stack-create-complete --stack-name Instances
 
+echo "Link to the website:"
+echo "http://$(aws cloudformation describe-stacks --stack-name Instances --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' --output text)"
+
 [console]::beep(300, 1000)
