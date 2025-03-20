@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: NAT Gateway and Routing setup for private subnets
+
+Resources:
+  NATElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: MyNATElasticIP
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATElasticIP.AllocationId
+      SubnetId: !ImportValue MyBase:MyFirstSubnet
+      Tags:
+        - Key: Name
+          Value: MyNATGateway
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !ImportValue MyBase:VPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !ImportValue MyBase:MyFirstPrivateSubnet
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !ImportValue MyBase:MySecondPrivateSubnet
+      RouteTableId: !Ref PrivateRouteTable
+
+Outputs:
+  NATGatewayID:
+    Description: ID of the NAT Gateway
+    Value: !Ref NATGateway
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", "NATGatewayID" ] ]
+
+  PrivateRouteTableID:
+    Description: ID of the Private Route Table
+    Value: !Ref PrivateRouteTable
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", "PrivateRouteTableID" ] ]
