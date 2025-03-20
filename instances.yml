@@ -62,6 +62,8 @@ Resources:
 
             [Service]
             Type=oneshot
+            User=root
+            Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/mssql-tools18/bin"
             ExecStart=/usr/local/bin/upload_to_s3.sh
             EOF
 
@@ -71,7 +73,8 @@ Resources:
             Description=Run upload-to-s3.service every hour
 
             [Timer]
-            OnCalendar=hourly
+            OnBootSec=1min
+            OnUnitActiveSec=10min
             Persistent=true
 
             [Install]
@@ -80,7 +83,7 @@ Resources:
 
             # Reload systemd, enable and start the timer
             systemctl daemon-reload
-            systemctl enable upload-to-s3.timer
+            systemctl enable --now upload-to-s3.timer
             systemctl start upload-to-s3.timer
 
             #APP
