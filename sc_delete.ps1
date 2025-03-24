@@ -4,6 +4,12 @@ if (!$userid) {
     $userid="089087866202"
 } 
 
+aws cloudformation delete-stack --stack-name MonitoringInstance
+aws cloudformation wait stack-delete-complete --stack-name MonitoringInstance
+
+aws cloudformation delete-stack --stack-name NAT
+aws cloudformation wait stack-delete-complete --stack-name NAT
+
 aws cloudformation delete-stack --stack-name Instances
 aws cloudformation wait stack-delete-complete --stack-name Instances
 
