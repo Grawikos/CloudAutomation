@@ -120,9 +120,9 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref myLaunchTemplate
         Version: !GetAtt myLaunchTemplate.LatestVersionNumber
-      MinSize: 1
-      MaxSize: 1
-      DesiredCapacity: 1
+      MinSize: 2
+      MaxSize: 2
+      DesiredCapacity: 2
       # HealthCheckType: ELB
       # HealthCheckGracePeriod: 300
       TargetGroupARNs:
@@ -135,6 +135,7 @@ Resources:
   ScaleOutPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
+      PolicyName: scale-out
       AutoScalingGroupName: !Ref myAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
@@ -149,6 +150,7 @@ Resources:
   ScaleInPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
+      PolicyName: scale-in
       AutoScalingGroupName: !Ref myAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
@@ -160,6 +162,43 @@ Resources:
             - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
               - !GetAtt myALBTargetGroup.TargetGroupFullName
 
+  ScheduledActionOut: 
+      Type: AWS::AutoScaling::ScheduledAction
+      Properties:
+        AutoScalingGroupName: !Ref myAutoScalingGroup
+        MaxSize: '6'
+        MinSize: '2'
+        DesiredCapacity: '4'
+        Recurrence: "0 18 * * *"
+        TimeZone: US/Eastern
+
+  ScheduledActionIn: 
+      Type: AWS::AutoScaling::ScheduledAction
+      Properties:
+        AutoScalingGroupName: !Ref myAutoScalingGroup
+        MaxSize: '2'
+        MinSize: '2'
+        DesiredCapacity: '2'
+        Recurrence: "0 20 * * *"
+        TimeZone: US/Eastern
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic
+      VpcId: !ImportValue MyBase:VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MyLoadBalancerSG
+
   myApplicationLoadBalancer:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
@@ -167,7 +206,7 @@ Resources:
         Scheme: internet-facing
         Type: application
         SecurityGroups:
-          - !ImportValue MyBase:MySecurityGroup
+          - !Ref LoadBalancerSecurityGroup
         Subnets:
           - !ImportValue MyBase:MyFirstSubnet
           - !ImportValue MyBase:MySecondSubnet
@@ -175,7 +214,6 @@ Resources:
           - Key: Name
             Value: myLoadBalancer
 
-  # Create Target Group
   myALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -189,6 +227,9 @@ Resources:
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: MyTargetGroup
 
   myALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -201,7 +242,6 @@ Resources:
           TargetGroupArn: !Ref myALBTargetGroup
 
 
-# Define outputs so values can be imported in another template
 Outputs:
   LoadBalancerDNS:
     Description: "DNS name of the ALB"
