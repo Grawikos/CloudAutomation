@@ -66,6 +66,7 @@ Resources:
                   Key="index.html",
                   Body=html_content,
                   ContentType="text/html"
+                  ACL="public-read"
               )
 
               return {"statusCode": 200, "body": "HTML file created"}
@@ -76,7 +77,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref ProcessTextLambda
       Principal: s3.amazonaws.com
-      SourceArn: !Sub "arn:aws:s3:::athena-data-bucket-089087866202"
+      SourceArn: !Sub "arn:aws:s3:::${BucketName}-${LabAccountID}"
 
 
 

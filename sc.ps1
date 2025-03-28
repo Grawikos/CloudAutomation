@@ -1,7 +1,11 @@
-param($userid)
+param($userid,$bucketname)
 if (!$userid) {
     echo "-userid expected, defaulting to 089087866202"
     $userid="089087866202"
+} 
+if (!$bucketname) {
+    echo "-bucketname expected, defaulting to athena-data-bucket"
+    $bucketname="athena-data-bucket"
 } 
 
 aws cloudformation create-stack --stack-name MyBase --template-body file://networking.yml
@@ -9,8 +13,7 @@ aws cloudformation wait stack-create-complete --stack-name MyBase
 
 aws cloudformation create-stack --stack-name EFS --template-body file://efs.yml
 aws cloudformation create-stack --stack-name SSMS --template-body file://ssms.yml
-aws cloudformation create-stack --stack-name S3Athena --template-body file://bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=$userid
-
+aws cloudformation create-stack --stack-name S3Athena --template-body file://bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=$userid ParameterKey=BucketName,ParameterValue=$bucketname
 
 aws cloudformation wait stack-create-complete --stack-name EFS
 aws cloudformation wait stack-create-complete --stack-name SSMS
