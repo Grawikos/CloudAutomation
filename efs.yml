@@ -13,18 +13,51 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref FileSystemResource
-      SubnetId: !ImportValue MyBase:MyFirstSubnet
+      SubnetId: !ImportValue MyBase:PublicSubnet1
       SecurityGroups: 
-        - !ImportValue MyBase:MySecurityGroup 
+        - !Ref ApplicationSecurityGroup 
 
   MountTargetSecondSNet:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref FileSystemResource
-      SubnetId: !ImportValue MyBase:MySecondSubnet
+      SubnetId: !ImportValue MyBase:PublicSubnet2
       SecurityGroups: 
-        - !ImportValue MyBase:MySecurityGroup 
+        - !Ref ApplicationSecurityGroup 
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      # GroupName: MyGroupName
+      GroupDescription: Allow http and ssh, efs and app specific api ports
+      VpcId: !ImportValue  MyBase:VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0  
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0 
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5098
+          ToPort: 5098
+          CidrIp: 0.0.0.0/0   
 
+      SecurityGroupEgress:
+        - IpProtocol: -1 
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MyGroupName
 
 Outputs: 
   EFSIP1:
@@ -38,4 +71,9 @@ Outputs:
     Description: "EFS File System DNS Name"
     Value: !Sub "${FileSystemResource}.efs.${AWS::Region}.amazonaws.com"
     Export:
-      Name: MyEFS-DNS
+      Name: !Join [ ":", [ !Ref "AWS::StackName", EFS-DNS] ]
+  SecurityGroupRef:
+    Description: Reference to the SecurityGroup
+    Value: !Ref ApplicationSecurityGroup
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", ApplicationSecurityGroup ] ]

@@ -14,7 +14,7 @@ Resources:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NATElasticIP.AllocationId
-      SubnetId: !ImportValue MyBase:MyFirstSubnet
+      SubnetId: !ImportValue MyBase:PublicSubnet1
       Tags:
         - Key: Name
           Value: MyNATGateway
@@ -37,13 +37,13 @@ Resources:
   PrivateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !ImportValue MyBase:MyFirstPrivateSubnet
+      SubnetId: !ImportValue MyBase:PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable
 
   PrivateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !ImportValue MyBase:MySecondPrivateSubnet
+      SubnetId: !ImportValue MyBase:PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
 Outputs:

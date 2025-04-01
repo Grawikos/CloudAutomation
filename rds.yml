@@ -1,7 +1,7 @@
-Description: SSMS
+Description: RDS MSSQL Server with own security group
 
 Resources:  
-  MyDBSecurityGroup:
+  DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow SQL Server access
@@ -11,14 +11,14 @@ Resources:
           FromPort: 1433
           ToPort: 1433
           CidrIp: 10.0.0.0/16
-  MyDBSubnetGroup:
+  DBSubnetGroup:
     Type: "AWS::RDS::DBSubnetGroup"
     Properties:
       DBSubnetGroupDescription: "Subnets for RDS"
       SubnetIds:
-        - !ImportValue MyBase:MyFirstSubnet
-        - !ImportValue MyBase:MySecondSubnet
-  MyDB:
+        - !ImportValue MyBase:PublicSubnet1
+        - !ImportValue MyBase:PublicSubnet2
+  MSSQLServer:
     Type: 'AWS::RDS::DBInstance'
     Properties:
       DBInstanceIdentifier: mydbinstance
@@ -29,15 +29,15 @@ Resources:
       MasterUserPassword: praktyka
       PubliclyAccessible: false
       VPCSecurityGroups:
-        - !Ref MyDBSecurityGroup
-      DBSubnetGroupName: !Ref MyDBSubnetGroup
+        - !Ref DBSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
       LicenseModel: license-included
       MonitoringInterval: 0
 
 Outputs:
   RDSEndpoint:
     Description: RDS instance endpoint to connect with SQL Server
-    Value: !GetAtt MyDB.Endpoint.Address
+    Value: !GetAtt MSSQLServer.Endpoint.Address
     Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", MyDB] ]
+      Name: !Join [ ":", [ !Ref "AWS::StackName", MSSQLServer] ]
     

@@ -10,6 +10,8 @@ GO
 use [Microsoft.eShopOnWeb.CatalogDb];
 GO
 
+systemctl list-timers --all
+cat /var/log/s3_upload.log
 
 
 curl https://packages.microsoft.com/config/rhel/9/prod.repo | sudo tee /etc/yum.repos.d/mssql-release.repo
@@ -29,3 +31,11 @@ aws cloudformation create-stack --stack-name S3Athena --template-body file://buc
 aws s3 cp s3://partner-data-bucket-089087866202/orders_data.txt ./
 
 aws s3 rm s3://athena-data-bucket-089087866202 --recursive
+
+
+aws cloudformation update-stack --stack-name S3Athena --template-body file://bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=089087866202 ParameterKey=BucketName,ParameterValue=athena-data-bucket
+
+
+netstat -tulnp | grep LISTEN
+
+docker system prune -a --volumes

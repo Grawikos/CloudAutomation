@@ -6,7 +6,7 @@ Parameters:
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
 Resources:
-  myLaunchTemplate:
+  AppLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
@@ -17,7 +17,7 @@ Resources:
           Name : LabInstanceProfile
         
         SecurityGroupIds:
-          - !ImportValue MyBase:MySecurityGroup
+          - !ImportValue EFS:ApplicationSecurityGroup
         UserData:
           Fn::Base64: !Sub 
           - |
@@ -106,27 +106,27 @@ Resources:
               sudo dotnet run --urls "http://*:80" > /mnt/efs/log.log
             EOF
 
-          - EFS: !ImportValue MyEFS-DNS 
-            RDSENDPOINT: !ImportValue SSMS:MyDB
+          - EFS: !ImportValue EFS:EFS-DNS
+            RDSENDPOINT: !ImportValue RDS:MSSQLServer
             BUCKET: !ImportValue S3Athena:PartnerDataBucket
 
 
-  myAutoScalingGroup:
+  AppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
-        - !ImportValue MyBase:MyFirstSubnet
-        - !ImportValue MyBase:MySecondSubnet
+        - !ImportValue MyBase:PublicSubnet1
+        - !ImportValue MyBase:PublicSubnet2
       LaunchTemplate:
-        LaunchTemplateId: !Ref myLaunchTemplate
-        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
       MinSize: 1
       MaxSize: 2
       DesiredCapacity: 2
       # HealthCheckType: ELB
       # HealthCheckGracePeriod: 300
       TargetGroupARNs:
-        - !Ref myALBTargetGroup
+        - !Ref ALBTargetGroup
       Tags:
         - Key: Name
           Value: AutoScaledInstance
@@ -136,7 +136,7 @@ Resources:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       PolicyName: scale-out
-      AutoScalingGroupName: !Ref myAutoScalingGroup
+      AutoScalingGroupName: !Ref AppAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         TargetValue: 5000  
@@ -144,14 +144,14 @@ Resources:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
-              - !GetAtt myALBTargetGroup.TargetGroupFullName
+            - - !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt ALBTargetGroup.TargetGroupFullName
 
   ScaleInPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       PolicyName: scale-in
-      AutoScalingGroupName: !Ref myAutoScalingGroup
+      AutoScalingGroupName: !Ref AppAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         TargetValue: 500 
@@ -159,13 +159,13 @@ Resources:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
-              - !GetAtt myALBTargetGroup.TargetGroupFullName
+            - - !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt ALBTargetGroup.TargetGroupFullName
 
   ScheduledActionOut: 
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
-        AutoScalingGroupName: !Ref myAutoScalingGroup
+        AutoScalingGroupName: !Ref AppAutoScalingGroup
         MaxSize: '6'
         MinSize: '2'
         DesiredCapacity: '4'
@@ -175,9 +175,9 @@ Resources:
   ScheduledActionIn: 
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
-        AutoScalingGroupName: !Ref myAutoScalingGroup
-        MaxSize: '1'
-        MinSize: '2'
+        AutoScalingGroupName: !Ref AppAutoScalingGroup
+        MaxSize: '2'
+        MinSize: '1'
         DesiredCapacity: '2'
         Recurrence: "0 20 * * *"
         TimeZone: US/Eastern
@@ -199,7 +199,7 @@ Resources:
         - Key: Name
           Value: MyLoadBalancerSG
 
-  myApplicationLoadBalancer:
+  ApplicationLoadBalancer:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
         Name: myALB
@@ -208,13 +208,13 @@ Resources:
         SecurityGroups:
           - !Ref LoadBalancerSecurityGroup
         Subnets:
-          - !ImportValue MyBase:MyFirstSubnet
-          - !ImportValue MyBase:MySecondSubnet
+          - !ImportValue MyBase:PublicSubnet1
+          - !ImportValue MyBase:PublicSubnet2
         Tags:
           - Key: Name
             Value: myLoadBalancer
 
-  myALBTargetGroup:
+  ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !ImportValue MyBase:VPC
@@ -238,20 +238,20 @@ Resources:
         - Key: Name
           Value: MyTargetGroup
 
-  myALBListener:
+  ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref myApplicationLoadBalancer
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
       Protocol: HTTP
       Port: 80
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref myALBTargetGroup
+          TargetGroupArn: !Ref ALBTargetGroup
 
 
 Outputs:
   LoadBalancerDNS:
     Description: "DNS name of the ALB"
-    Value: !GetAtt myApplicationLoadBalancer.DNSName
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
     Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", myApplicationLoadBalancer, DNS ] ]
+      Name: !Join [ ":", [ !Ref "AWS::StackName", ApplicationLoadBalancer, DNS ] ]

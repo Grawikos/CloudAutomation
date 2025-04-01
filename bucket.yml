@@ -65,7 +65,7 @@ Resources:
                   Bucket=bucket,
                   Key="index.html",
                   Body=html_content,
-                  ContentType="text/html"
+                  ContentType="text/html",
                   ACL="public-read"
               )
 
