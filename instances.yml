@@ -120,7 +120,7 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref myLaunchTemplate
         Version: !GetAtt myLaunchTemplate.LatestVersionNumber
-      MinSize: 2
+      MinSize: 1
       MaxSize: 2
       DesiredCapacity: 2
       # HealthCheckType: ELB
@@ -176,7 +176,7 @@ Resources:
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
         AutoScalingGroupName: !Ref myAutoScalingGroup
-        MaxSize: '2'
+        MaxSize: '1'
         MinSize: '2'
         DesiredCapacity: '2'
         Recurrence: "0 20 * * *"
