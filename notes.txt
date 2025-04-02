@@ -39,3 +39,13 @@ aws cloudformation update-stack --stack-name S3Athena --template-body file://buc
 netstat -tulnp | grep LISTEN
 
 docker system prune -a --volumes
+
+aws s3 cp s3://athena-data-bucket-089087866202/out.txt s3://athena-data-bucket-089087866202/out.txt
+
+$port=8080
+
+$params = @"
+{"portNumber":["5601"], "localPortNumber":["$port"]}
+"@
+
+aws ssm start-session --target "i-123456" --document-name AWS-StartPortForwardingSession --parameters $params
