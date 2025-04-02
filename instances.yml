@@ -202,7 +202,7 @@ Resources:
   ApplicationLoadBalancer:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
-        Name: myALB
+        Name: MarcinMaciejShop
         Scheme: internet-facing
         Type: application
         SecurityGroups:
