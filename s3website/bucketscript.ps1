@@ -1,8 +1,6 @@
 param($userid,$bucketname,$region)
 if (!$userid) {
-    echo "-userid expected"
-    # -userid "089087866202"
-    Break
+    $userid="$(aws sts get-caller-identity --query Account --output text)"
 } 
 if (!$bucketname) {
     echo "-bucketname expected, defaulting to athena-data-bucket"

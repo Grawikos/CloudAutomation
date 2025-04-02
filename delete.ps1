@@ -1,8 +1,7 @@
 # .\delete.ps1 -userid "089087866202"
 param($userid,$bucketname)
 if (!$userid) {
-    echo '-userid "[0-9]{12}" expected, not found'
-    Break
+    $userid="$(aws sts get-caller-identity --query Account --output text)"
 } elseif (!($userid -match "[0-9]{12}")) {
     echo 'wrong format, -userid "[0-9]{12}" expected'
     Break

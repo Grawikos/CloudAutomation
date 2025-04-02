@@ -4,8 +4,7 @@ bucketname=$2
 echo "Checking parameters..."
 
 if [[ -z "$userid" ]]; then
-    echo "-userid '[0-9]{12}' expected, not found"
-    exit 1
+    userid="$(aws sts get-caller-identity --query Account --output text)"
 elif [[ ! "$userid" =~ ^[0-9]{12}$ ]]; then
     echo "Wrong format, -userid '[0-9]{12}' expected"
     exit 1
