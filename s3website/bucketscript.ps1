@@ -1,4 +1,4 @@
-param($userid,$bucketname)
+param($userid,$bucketname,$region)
 if (!$userid) {
     echo "-userid expected"
     # -userid "089087866202"
@@ -8,6 +8,9 @@ if (!$bucketname) {
     echo "-bucketname expected, defaulting to athena-data-bucket"
     $bucketname="athena-data-bucket"
 } 
+if (!$region){
+    $region="us-east-1"
+}
 
 $policy = '{\"Version\": \"2012-10-17\", \"Statement\": [{\"Sid\": \"PublicReadGetObject\", \"Effect\": \"Allow\", \"Principal\": \"*\", \"Action\": \"s3:GetObject\", \"Resource\": \"arn:aws:s3:::' + $bucketname + '-' + $userid + '/*\"}]}'
 
@@ -20,4 +23,4 @@ aws s3 cp s3://$bucketname-$userid/out.txt s3://$bucketname-$userid/tmp.txt
 aws s3 rm s3://$bucketname-$userid/tmp.txt
 
 echo Website:
-echo "http://$bucketname-$userid.s3-website-us-east-1.amazonaws.com/"
+echo "http://$bucketname-$userid.s3-website-$region.amazonaws.com/"
