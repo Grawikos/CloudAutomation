@@ -12,7 +12,7 @@ if (!$region){
 
 $policy = '{\"Version\": \"2012-10-17\", \"Statement\": [{\"Sid\": \"PublicReadGetObject\", \"Effect\": \"Allow\", \"Principal\": \"*\", \"Action\": \"s3:GetObject\", \"Resource\": \"arn:aws:s3:::' + $bucketname + '-' + $userid + '/*\"}]}'
 
-echo $policy
+
 aws s3api put-bucket-website --bucket $bucketname-$userid --website-configuration file://website.json
 aws s3api put-public-access-block --bucket $bucketname-$userid --public-access-block-configuration "BlockPublicAcls=false"
 aws s3api put-bucket-ownership-controls --bucket $bucketname-$userid --ownership-controls="Rules=[{ObjectOwnership=ObjectWriter}]"

@@ -33,7 +33,6 @@ policy=$(cat <<EOF
 EOF
 )
 
-echo "$policy"
 
 aws s3api put-bucket-website --bucket "$bucketname-$userid" --website-configuration file://website.json
 aws s3api put-public-access-block --bucket "$bucketname-$userid" --public-access-block-configuration '{"BlockPublicAcls":false}'
