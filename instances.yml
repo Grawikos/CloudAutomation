@@ -1,4 +1,4 @@
-Description: Instances for the VPC in AutoScalingGroup
+Description: Instances for the App in AutoScalingGroup
 
 Parameters:
   LatestAmiId:
@@ -6,127 +6,111 @@ Parameters:
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
 Resources:
-  AppLaunchTemplate:
+  myLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
         ImageId: !Ref LatestAmiId
         InstanceType: t2.small
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"  # Root volume (may be /dev/sda1 in some cases)
+            Ebs:
+              VolumeSize: 16
+              VolumeType: gp3 
+              DeleteOnTermination: true 
         KeyName: vockey
         IamInstanceProfile: 
           Name : LabInstanceProfile
         
         SecurityGroupIds:
-          - !ImportValue EFS:ApplicationSecurityGroup
+          - !ImportValue MyBase:MySecurityGroup
         UserData:
           Fn::Base64: !Sub 
           - |
             #!/bin/bash
-            #EFS
             yum update -y
             mkdir -p -m 777 /mnt/efs
             mount -t nfs4 ${EFS}:/ /mnt/efs
             chmod -R 777 mnt/
 
-            #BCP
-            curl https://packages.microsoft.com/config/rhel/9/prod.repo | sudo tee /etc/yum.repos.d/mssql-release.repo
-            yum remove mssql-tools unixODBC-utf16 unixODBC-utf16-devel
-            export ACCEPT_EULA=Y
-            yes | yum install -y mssql-tools18 unixODBC-devel
-            yum check-update
-            yum update mssql-tools18
-            echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
-            source ~/.bashrc
-            cd /
-            mkdir -m 777 athenafolder
-            
-            #Hourly put data to S3
-            cat <<EOF > /usr/local/bin/upload_to_s3.sh
-            #!/bin/bash
-            bcp orders out /athenafolder/out.txt -c -u -U sa -P praktyka -S ${RDSENDPOINT} -d Microsoft.eShopOnWeb.CatalogDb
-            
-            if [ -f "/athenafolder/out.txt" ]; then
-              aws s3 cp /athenafolder/out.txt s3://${BUCKET}/
-              echo "$(date) - Uploaded /athenafolder/out.txt to ${BUCKET}/" >> /var/log/s3_upload.log
-            else
-              echo "$(date) - File not found: /athenafolder/out.txt" >> /var/log/s3_upload.log
-            fi
+            yum install docker -y
+            systemctl start docker
+            systemctl enable docker
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 089087866202.dkr.ecr.us-east-1.amazonaws.com
+            docker swarm join --token  "$(< /mnt/efs/swarm-token)" $(< mnt/efs/masterip.txt):2377
+
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+            AWS_REGION=us-east-1
+            ECR_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/test-repository"
+
+            docker pull $ECR_REPO:latest
+
+            curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+            chmod +x /usr/local/bin/docker-compose
+
+            mkdir CloudShirt
+
+            cat  <<EOF > /CloudShirt/docker-compose.yml
+            version: '3.4'
+
+            services:
+              eshopwebmvc:
+                image: 089087866202.dkr.ecr.us-east-1.amazonaws.com/test-repository:latest
+                depends_on:
+                  - "sqlserver"
+
+            #  eshoppublicapi:
+            #    image: 089087866202.dkr.ecr.us-east-1.amazonaws.com/test-repository:publicapi-latest
+            #    depends_on:
+            #      - "sqlserver"
+
+              sqlserver:
+                image: mcr.microsoft.com/azure-sql-edge
+                ports:
+                  - "1433:1433"
+                environment:
+                  - SA_PASSWORD=praktyka
+                  - ACCEPT_EULA=Y
+
             EOF
 
-            chmod +x /usr/local/bin/upload_to_s3.sh
+            cat  <<EOF > /CloudShirt/docker-compose.override.yml
+            version: '3.4'
+            services:
+              eshopwebmvc:
+                environment:
+                  - ASPNETCORE_ENVIRONMENT=Docker
+                  - ASPNETCORE_URLS=http://+:80
+                ports:
+                  - "80:80"
+                volumes:
+                  - ~/.aspnet/https:/root/.aspnet/https:ro
+                  - ~/.microsoft/usersecrets:/root/.microsoft/usersecrets:ro
 
-            cat <<EOF > /etc/systemd/system/upload-to-s3.service
-            [Unit]
-            Description=Upload data to S3
-            After=network.target
-
-            [Service]
-            Type=oneshot
-            User=root
-            Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/mssql-tools18/bin"
-            ExecStart=/usr/local/bin/upload_to_s3.sh
             EOF
+            cd CloudShirt
+            docker-compose up -d
 
-            # Create a systemd timer to run the service every hour
-            cat <<EOF > /etc/systemd/system/upload-to-s3.timer
-            [Unit]
-            Description=Run upload-to-s3.service every hour
-
-            [Timer]
-            OnBootSec=1min
-            OnUnitActiveSec=10min
-            Persistent=true
-
-            [Install]
-            WantedBy=timers.target
-            EOF
-
-            # Reload systemd, enable and start the timer
-            systemctl daemon-reload
-            systemctl enable --now upload-to-s3.timer
-            systemctl start upload-to-s3.timer
-
-            #APP
-            yum install git -y
-            git clone https://github.com/looking4ward/CloudShirt.git
-            sed -i 's/Server.*CatalogDb;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;/' /CloudShirt/src/Web/appsettings.json
-            sed -i 's/Server.*Identity;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.Identity;/' /CloudShirt/src/Web/appsettings.json
-            yum install -y dotnet6.0
-            chmod -R 777 /CloudShirt
-            sudo -i -u ec2-user bash <<EOF
-              source ~/.bashrc  
-              cd /
-              dotnet tool install --global dotnet-ef --version 7.0.20
-              cd CloudShirt/src/Web/
-              dotnet restore
-              dotnet tool restore
-              dotnet ef database update -c catalogcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
-              dotnet ef database update -c appidentitydbcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
-              dotnet build
-              sudo dotnet run --urls "http://*:80" > /mnt/efs/log.log
-            EOF
-
-          - EFS: !ImportValue EFS:EFS-DNS
-            RDSENDPOINT: !ImportValue RDS:MSSQLServer
-            BUCKET: !ImportValue S3Athena:PartnerDataBucket
+          - EFS: !ImportValue MyEFS-DNS 
+            RDSENDPOINT: !ImportValue SSMS:MyDB
 
 
-  AppAutoScalingGroup:
+  myAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
-        - !ImportValue MyBase:PublicSubnet1
-        - !ImportValue MyBase:PublicSubnet2
+        - !ImportValue MyBase:MyFirstSubnet
+        - !ImportValue MyBase:MySecondSubnet
       LaunchTemplate:
-        LaunchTemplateId: !Ref AppLaunchTemplate
-        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
-      MinSize: 1
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      MinSize: 2
       MaxSize: 2
       DesiredCapacity: 2
       # HealthCheckType: ELB
       # HealthCheckGracePeriod: 300
       TargetGroupARNs:
-        - !Ref ALBTargetGroup
+        - !Ref myALBTargetGroup
       Tags:
         - Key: Name
           Value: AutoScaledInstance
@@ -136,7 +120,7 @@ Resources:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       PolicyName: scale-out
-      AutoScalingGroupName: !Ref AppAutoScalingGroup
+      AutoScalingGroupName: !Ref myAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         TargetValue: 5000  
@@ -144,14 +128,14 @@ Resources:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
-              - !GetAtt ALBTargetGroup.TargetGroupFullName
+            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt myALBTargetGroup.TargetGroupFullName
 
   ScaleInPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       PolicyName: scale-in
-      AutoScalingGroupName: !Ref AppAutoScalingGroup
+      AutoScalingGroupName: !Ref myAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         TargetValue: 500 
@@ -159,13 +143,13 @@ Resources:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
-              - !GetAtt ALBTargetGroup.TargetGroupFullName
+            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt myALBTargetGroup.TargetGroupFullName
 
   ScheduledActionOut: 
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
-        AutoScalingGroupName: !Ref AppAutoScalingGroup
+        AutoScalingGroupName: !Ref myAutoScalingGroup
         MaxSize: '6'
         MinSize: '2'
         DesiredCapacity: '4'
@@ -175,9 +159,9 @@ Resources:
   ScheduledActionIn: 
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
-        AutoScalingGroupName: !Ref AppAutoScalingGroup
+        AutoScalingGroupName: !Ref myAutoScalingGroup
         MaxSize: '2'
-        MinSize: '1'
+        MinSize: '2'
         DesiredCapacity: '2'
         Recurrence: "0 20 * * *"
         TimeZone: US/Eastern
@@ -199,22 +183,22 @@ Resources:
         - Key: Name
           Value: MyLoadBalancerSG
 
-  ApplicationLoadBalancer:
+  myApplicationLoadBalancer:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
-        Name: MarcinMaciejShop
+        Name: myALB
         Scheme: internet-facing
         Type: application
         SecurityGroups:
           - !Ref LoadBalancerSecurityGroup
         Subnets:
-          - !ImportValue MyBase:PublicSubnet1
-          - !ImportValue MyBase:PublicSubnet2
+          - !ImportValue MyBase:MyFirstSubnet
+          - !ImportValue MyBase:MySecondSubnet
         Tags:
           - Key: Name
             Value: myLoadBalancer
 
-  ALBTargetGroup:
+  myALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !ImportValue MyBase:VPC
@@ -238,20 +222,20 @@ Resources:
         - Key: Name
           Value: MyTargetGroup
 
-  ALBListener:
+  myALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      LoadBalancerArn: !Ref myApplicationLoadBalancer
       Protocol: HTTP
       Port: 80
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref ALBTargetGroup
+          TargetGroupArn: !Ref myALBTargetGroup
 
 
 Outputs:
   LoadBalancerDNS:
     Description: "DNS name of the ALB"
-    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Value: !GetAtt myApplicationLoadBalancer.DNSName
     Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", ApplicationLoadBalancer, DNS ] ]
+      Name: !Join [ ":", [ !Ref "AWS::StackName", myApplicationLoadBalancer, DNS ] ]
