@@ -79,8 +79,6 @@ Resources:
       Principal: s3.amazonaws.com
       SourceArn: !Sub "arn:aws:s3:::${BucketName}-${LabAccountID}"
 
-
-
 Outputs:
   Bucket:
     Description: "S3 bucket for partner data"

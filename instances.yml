@@ -13,7 +13,7 @@ Resources:
         ImageId: !Ref LatestAmiId
         InstanceType: t2.small
         BlockDeviceMappings:
-          - DeviceName: "/dev/xvda"  # Root volume (may be /dev/sda1 in some cases)
+          - DeviceName: "/dev/xvda" 
             Ebs:
               VolumeSize: 16
               VolumeType: gp3 
@@ -21,7 +21,6 @@ Resources:
         KeyName: vockey
         IamInstanceProfile: 
           Name : LabInstanceProfile
-        
         SecurityGroupIds:
           - !ImportValue EFS:ApplicationSecurityGroup
         UserData:
@@ -96,14 +95,13 @@ Resources:
             yum install docker -y
             systemctl start docker
             systemctl enable docker
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 089087866202.dkr.ecr.us-east-1.amazonaws.com
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ECRRegistry}
             docker swarm join --token  "$(< /mnt/efs/swarm-token)" $(< mnt/efs/masterip.txt):2377
 
             AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
             AWS_REGION=us-east-1
-            ECR_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/test-repository"
 
-            docker pull $ECR_REPO:latest
+            docker pull ${ECRRepositoryUri}:latest
 
             curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
             chmod +x /usr/local/bin/docker-compose
@@ -115,12 +113,12 @@ Resources:
 
             services:
               eshopwebmvc:
-                image: 089087866202.dkr.ecr.us-east-1.amazonaws.com/test-repository:latest
+                image: ${ECRRepositoryUri}:latest
                 depends_on:
                   - "sqlserver"
 
             #  eshoppublicapi:
-            #    image: 089087866202.dkr.ecr.us-east-1.amazonaws.com/test-repository:publicapi-latest
+            #    image: ${ECRRepositoryUri}:publicapi-latest
             #    depends_on:
             #      - "sqlserver"
 
@@ -154,7 +152,8 @@ Resources:
           - EFS: !ImportValue EFS:EFS-DNS
             RDSENDPOINT: !ImportValue RDS:MSSQLServer
             BUCKET: !ImportValue S3Athena:PartnerDataBucket
-
+            ECRRegistry: !ImportValue ECR:Registry
+            ECRRepositoryUri: !ImportValue ECR:MyRepositoryUri
 
   AppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup

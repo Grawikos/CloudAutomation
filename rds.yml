@@ -11,6 +11,7 @@ Resources:
           FromPort: 1433
           ToPort: 1433
           CidrIp: 10.0.0.0/16
+
   DBSubnetGroup:
     Type: "AWS::RDS::DBSubnetGroup"
     Properties:
@@ -18,6 +19,7 @@ Resources:
       SubnetIds:
         - !ImportValue MyBase:PublicSubnet1
         - !ImportValue MyBase:PublicSubnet2
+
   MSSQLServer:
     Type: 'AWS::RDS::DBInstance'
     Properties:

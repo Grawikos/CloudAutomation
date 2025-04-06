@@ -1,8 +1,21 @@
-Description: ecr
-
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ECR Repository
 
 Resources:
-  MyRepository: 
+  MyRepository:
     Type: AWS::ECR::Repository
-    Properties: 
-      RepositoryName: "test-repository"
+    Properties:
+      RepositoryName: "appimagerepository"
+
+Outputs:
+  ECRRegistry:
+    Description: "ECR registry endpoint (without repo name)"
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: ECR:Registry
+
+  ECRRepositoryUri:
+    Description: "Full repository URI (registry + repo)"
+    Value: !GetAtt MyRepository.RepositoryUri
+    Export:
+      Name: ECR:MyRepositoryUri

@@ -19,21 +19,24 @@ echo "Deleting CloudFormation stacks..."
 aws cloudformation delete-stack --stack-name MonitoringInstance
 aws cloudformation wait stack-delete-complete --stack-name MonitoringInstance
 
-aws cloudformation delete-stack --stack-name NAT
-aws cloudformation wait stack-delete-complete --stack-name NAT
-
 aws cloudformation delete-stack --stack-name Instances
 aws cloudformation wait stack-delete-complete --stack-name Instances
 
-aws s3 rm s3://$bucketname-$userid --recursive
+aws cloudformation delete-stack --stack-name MasterBuild
+aws cloudformation wait stack-delete-complete --stack-name MasterBuild
 
+aws s3 rm s3://$bucketname-$userid --recursive
 aws cloudformation delete-stack --stack-name S3Athena 
+aws cloudformation delete-stack --stack-name ECR
+aws cloudformation delete-stack --stack-name NAT
 aws cloudformation delete-stack --stack-name EFS 
 aws cloudformation delete-stack --stack-name RDS 
 
+aws cloudformation wait stack-delete-complete --stack-name NAT
 aws cloudformation wait stack-delete-complete --stack-name S3Athena
-aws cloudformation wait stack-delete-complete --stack-name RDS
+aws cloudformation wait stack-delete-complete --stack-name ECR
 aws cloudformation wait stack-delete-complete --stack-name EFS
+aws cloudformation wait stack-delete-complete --stack-name RDS
 
 aws cloudformation delete-stack --stack-name MyBase
 aws cloudformation wait stack-delete-complete --stack-name MyBase
