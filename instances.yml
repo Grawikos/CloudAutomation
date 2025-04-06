@@ -6,7 +6,7 @@ Parameters:
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
 Resources:
-  myLaunchTemplate:
+  AppLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateData:
@@ -23,16 +23,76 @@ Resources:
           Name : LabInstanceProfile
         
         SecurityGroupIds:
-          - !ImportValue MyBase:MySecurityGroup
+          - !ImportValue EFS:ApplicationSecurityGroup
         UserData:
           Fn::Base64: !Sub 
           - |
             #!/bin/bash
             yum update -y
+
+            ### EFS
             mkdir -p -m 777 /mnt/efs
             mount -t nfs4 ${EFS}:/ /mnt/efs
             chmod -R 777 mnt/
 
+            #BCP
+            curl https://packages.microsoft.com/config/rhel/9/prod.repo | sudo tee /etc/yum.repos.d/mssql-release.repo
+            yum remove mssql-tools unixODBC-utf16 unixODBC-utf16-devel
+            export ACCEPT_EULA=Y
+            yes | yum install -y mssql-tools18 unixODBC-devel
+            yum check-update
+            yum update mssql-tools18
+            echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> ~/.bashrc
+            source ~/.bashrc
+            cd /
+            mkdir -m 777 athenafolder
+            # Hourly put data to S3
+            cat <<EOF > /usr/local/bin/upload_to_s3.sh
+            #!/bin/bash
+            bcp orders out /athenafolder/out.txt -c -u -U sa -P praktyka -S ${RDSENDPOINT} -d Microsoft.eShopOnWeb.CatalogDb
+            
+            if [ -f "/athenafolder/out.txt" ]; then
+              aws s3 cp /athenafolder/out.txt s3://${BUCKET}/
+              echo "$(date) - Uploaded /athenafolder/out.txt to ${BUCKET}/" >> /var/log/s3_upload.log
+            else
+              echo "$(date) - File not found: /athenafolder/out.txt" >> /var/log/s3_upload.log
+            fi
+            EOF
+
+            chmod +x /usr/local/bin/upload_to_s3.sh
+
+            cat <<EOF > /etc/systemd/system/upload-to-s3.service
+            [Unit]
+            Description=Upload data to S3
+            After=network.target
+
+            [Service]
+            Type=oneshot
+            User=root
+            Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/mssql-tools18/bin"
+            ExecStart=/usr/local/bin/upload_to_s3.sh
+            EOF
+
+            # Create a systemd timer to run the service every hour
+            cat <<EOF > /etc/systemd/system/upload-to-s3.timer
+            [Unit]
+            Description=Run upload-to-s3.service every hour
+
+            [Timer]
+            OnBootSec=1min
+            OnUnitActiveSec=10min
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+            EOF
+
+            # Reload systemd, enable and start the timer
+            systemctl daemon-reload
+            systemctl enable --now upload-to-s3.timer
+            systemctl start upload-to-s3.timer
+
+            ### APP
             yum install docker -y
             systemctl start docker
             systemctl enable docker
@@ -89,28 +149,29 @@ Resources:
 
             EOF
             cd CloudShirt
-            docker-compose up -d
+            docker-compose up > /mnt/efs/log.log
 
-          - EFS: !ImportValue MyEFS-DNS 
-            RDSENDPOINT: !ImportValue SSMS:MyDB
+          - EFS: !ImportValue EFS:EFS-DNS
+            RDSENDPOINT: !ImportValue RDS:MSSQLServer
+            BUCKET: !ImportValue S3Athena:PartnerDataBucket
 
 
-  myAutoScalingGroup:
+  AppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
-        - !ImportValue MyBase:MyFirstSubnet
-        - !ImportValue MyBase:MySecondSubnet
+        - !ImportValue MyBase:PublicSubnet1
+        - !ImportValue MyBase:PublicSubnet2
       LaunchTemplate:
-        LaunchTemplateId: !Ref myLaunchTemplate
-        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
-      MinSize: 2
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
+      MinSize: 1
       MaxSize: 2
       DesiredCapacity: 2
       # HealthCheckType: ELB
       # HealthCheckGracePeriod: 300
       TargetGroupARNs:
-        - !Ref myALBTargetGroup
+        - !Ref ALBTargetGroup
       Tags:
         - Key: Name
           Value: AutoScaledInstance
@@ -120,7 +181,7 @@ Resources:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       PolicyName: scale-out
-      AutoScalingGroupName: !Ref myAutoScalingGroup
+      AutoScalingGroupName: !Ref AppAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         TargetValue: 5000  
@@ -128,14 +189,14 @@ Resources:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
-              - !GetAtt myALBTargetGroup.TargetGroupFullName
+            - - !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt ALBTargetGroup.TargetGroupFullName
 
   ScaleInPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
     Properties:
       PolicyName: scale-in
-      AutoScalingGroupName: !Ref myAutoScalingGroup
+      AutoScalingGroupName: !Ref AppAutoScalingGroup
       PolicyType: TargetTrackingScaling
       TargetTrackingConfiguration:
         TargetValue: 500 
@@ -143,13 +204,13 @@ Resources:
           PredefinedMetricType: ALBRequestCountPerTarget
           ResourceLabel: !Join 
             - '/' 
-            - - !GetAtt myApplicationLoadBalancer.LoadBalancerFullName
-              - !GetAtt myALBTargetGroup.TargetGroupFullName
+            - - !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+              - !GetAtt ALBTargetGroup.TargetGroupFullName
 
   ScheduledActionOut: 
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
-        AutoScalingGroupName: !Ref myAutoScalingGroup
+        AutoScalingGroupName: !Ref AppAutoScalingGroup
         MaxSize: '6'
         MinSize: '2'
         DesiredCapacity: '4'
@@ -159,9 +220,9 @@ Resources:
   ScheduledActionIn: 
       Type: AWS::AutoScaling::ScheduledAction
       Properties:
-        AutoScalingGroupName: !Ref myAutoScalingGroup
+        AutoScalingGroupName: !Ref AppAutoScalingGroup
         MaxSize: '2'
-        MinSize: '2'
+        MinSize: '1'
         DesiredCapacity: '2'
         Recurrence: "0 20 * * *"
         TimeZone: US/Eastern
@@ -183,22 +244,22 @@ Resources:
         - Key: Name
           Value: MyLoadBalancerSG
 
-  myApplicationLoadBalancer:
+  ApplicationLoadBalancer:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
-        Name: myALB
+        Name: MarcinMaciejShop
         Scheme: internet-facing
         Type: application
         SecurityGroups:
           - !Ref LoadBalancerSecurityGroup
         Subnets:
-          - !ImportValue MyBase:MyFirstSubnet
-          - !ImportValue MyBase:MySecondSubnet
+          - !ImportValue MyBase:PublicSubnet1
+          - !ImportValue MyBase:PublicSubnet2
         Tags:
           - Key: Name
             Value: myLoadBalancer
 
-  myALBTargetGroup:
+  ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !ImportValue MyBase:VPC
@@ -222,20 +283,20 @@ Resources:
         - Key: Name
           Value: MyTargetGroup
 
-  myALBListener:
+  ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref myApplicationLoadBalancer
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
       Protocol: HTTP
       Port: 80
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref myALBTargetGroup
+          TargetGroupArn: !Ref ALBTargetGroup
 
 
 Outputs:
   LoadBalancerDNS:
     Description: "DNS name of the ALB"
-    Value: !GetAtt myApplicationLoadBalancer.DNSName
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
     Export:
-      Name: !Join [ ":", [ !Ref "AWS::StackName", myApplicationLoadBalancer, DNS ] ]
+      Name: !Join [ ":", [ !Ref "AWS::StackName", ApplicationLoadBalancer, DNS ] ]

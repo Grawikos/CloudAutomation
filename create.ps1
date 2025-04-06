@@ -18,11 +18,16 @@ aws cloudformation create-stack --stack-name RDS --template-body file://rds.yml
 aws cloudformation create-stack --stack-name NAT --template-body file://nat.yml
 aws cloudformation create-stack --stack-name EFS --template-body file://efs.yml
 aws cloudformation create-stack --stack-name S3Athena --template-body file://bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=$userid ParameterKey=BucketName,ParameterValue=$bucketname
+aws cloudformation create-stack --stack-name ECR --template-body file://ecr.yml
 
+aws cloudformation wait stack-create-complete --stack-name ECR 
 aws cloudformation wait stack-create-complete --stack-name EFS
 aws cloudformation wait stack-create-complete --stack-name S3Athena
 aws cloudformation wait stack-create-complete --stack-name NAT
 aws cloudformation wait stack-create-complete --stack-name RDS
+
+aws cloudformation create-stack --stack-name MasterBuild --template-body file://buildMaster.yml
+aws cloudformation wait stack-create-complete --stack-name MasterBuild
 
 aws cloudformation create-stack --stack-name Instances --template-body file://instances.yml
 aws cloudformation wait stack-create-complete --stack-name Instances

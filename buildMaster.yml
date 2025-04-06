@@ -21,14 +21,14 @@ Resources:
             VolumeType: gp3 
             DeleteOnTermination: true 
       KeyName: vockey
-      SubnetId: !ImportValue MyBase:MyFirstSubnet
+      SubnetId: !ImportValue MyBase:PublicSubnet1
       IamInstanceProfile: LabInstanceProfile
       
       SecurityGroupIds:
-        - !ImportValue MyBase:MySecurityGroup
+        - !ImportValue EFS:ApplicationSecurityGroup
       Tags:
         - Key: Name
-          Value: BiuldInstance
+          Value: BuildInstance
       UserData:
         Fn::Base64: !Sub 
         - |
@@ -151,8 +151,9 @@ Resources:
           EOF
           chmod +x /CloudShirt/build_and_push.sh
 
-        - EFS: !ImportValue MyEFS-DNS 
-          RDSENDPOINT: !ImportValue SSMS:MyDB
+        - EFS: !ImportValue EFS:EFS-DNS
+          RDSENDPOINT: !ImportValue RDS:MSSQLServer
+          BUCKET: !ImportValue S3Athena:PartnerDataBucket
 
 
 
