@@ -26,7 +26,7 @@ aws cloudformation wait stack-delete-complete --stack-name MasterBuild
 
 aws s3 rm s3://$bucketname-$userid --recursive
 aws cloudformation delete-stack --stack-name S3Athena 
-aws ecr delete-repository --repository-name test-repository --force
+aws ecr delete-repository --repository-name appimagerepository --force
 aws cloudformation delete-stack --stack-name ECR
 aws cloudformation delete-stack --stack-name NAT
 aws cloudformation delete-stack --stack-name EFS 

@@ -56,75 +56,91 @@ Resources:
 
           #APP
           yum install git -y
-          git clone https://github.com/looking4ward/CloudShirt.git
-          sed -i 's/Server.*CatalogDb;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;/' /CloudShirt/src/Web/appsettings.json
-          sed -i 's/Server.*Identity;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.Identity;/' /CloudShirt/src/Web/appsettings.json
           yum install -y dotnet6.0
-          chmod -R 777 /CloudShirt
-          sed -i 's/SA_PASSWORD=@someThingComplicated1234/SA_PASSWORD=praktyka/' /CloudShirt/docker-compose.yml
-          sed -i 's/Server.*false;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;/' /CloudShirt/src/Web/appsettings.Docker.json
-          sed -i 's/Server.*false;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.Identity;/' /CloudShirt/src/Web/appsettings.Docker.json
-          sed -i 's/webBase.*5106/webBase": "http:\/\/*:80/' /CloudShirt/src/Web/appsettings.Docker.json
-          sed -i 's/5106:80/80:80/' /CloudShirt/docker-compose.override.yml 
-
+          git clone https://github.com/looking4ward/CloudShirt.git
           yum install docker -y
           systemctl start docker
           systemctl enable docker
-
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${ECRRegistry}
           docker swarm init
           docker swarm join-token worker -q > /mnt/efs/swarm-token
           echo $HOSTNAME | grep -Eo '[[:digit:]]+-[[:digit:]]+-[[:digit:]]+-[[:digit:]]+' | head -n 1 | tr '-' '.' > mnt/efs/masterip.txt
-
           sudo -i -u ec2-user bash <<EOF
               source ~/.bashrc  
               cd /
               dotnet tool install --global dotnet-ef --version 7.0.20
-              cd CloudShirt/src/Web/
-              dotnet restore
-              dotnet tool restore
-              dotnet ef database update -c catalogcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
-              dotnet ef database update -c appidentitydbcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
-              cd ../..
+              cd CloudShirt
               sudo yum install -y docker
               sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
               docker-compose version
               sudo systemctl start docker
           EOF
+
+          cat <<EOF > /CloudShirt/build_and_push.sh
+          cd /
+          cd CloudShirt
+          git reset --hard
+          git pull
+          cd ..
+          sudo chmod -R 777 /CloudShirt
+          sed -i 's/Server.*CatalogDb;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;/' /CloudShirt/src/Web/appsettings.json
+          sed -i 's/Server.*Identity;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.Identity;/' /CloudShirt/src/Web/appsettings.json
+          sed -i 's/SA_PASSWORD=@someThingComplicated1234/SA_PASSWORD=praktyka/' /CloudShirt/docker-compose.yml
+          sed -i 's/Server.*false;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;/' /CloudShirt/src/Web/appsettings.Docker.json
+          sed -i 's/Server.*false;/Server=${RDSENDPOINT},1433;User ID=sa;Password=praktyka;Initial Catalog=Microsoft.eShopOnWeb.Identity;/' /CloudShirt/src/Web/appsettings.Docker.json
+          sed -i 's/webBase.*5106/webBase": "http:\/\/*:80/' /CloudShirt/src/Web/appsettings.Docker.json
+          sed -i 's/5106:80/80:80/' /CloudShirt/docker-compose.override.yml 
+          sudo -i -u ec2-user bash <<EOF2
+              source ~/.bashrc  
+              cd /
+              cd CloudShirt/src/Web/
+              dotnet restore
+              dotnet tool restore
+              dotnet ef database update -c catalogcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
+              dotnet ef database update -c appidentitydbcontext -p ../Infrastructure/Infrastructure.csproj -s Web.csproj
+          EOF2
           cd CloudShirt
           docker-compose build
-
-          AWS_REGION=us-east-1
-          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
-          echo "Account ID: $AWS_ACCOUNT_ID, Region: $AWS_REGION"
-
-          aws ecr get-login-password --region $AWS_REGION | \
+          # AWS_REGION=us-east-1
+          aws ecr get-login-password --region us-east-1 | \
           docker login --username AWS --password-stdin ${ECRRegistry}
-
           docker tag eshopwebmvc:latest ${ECRRepositoryUri}:latest
           docker push ${ECRRepositoryUri}:latest
+          docker image prune -af
+          docker builder prune -af
+          docker container prune -f
+          docker volume prune -f
 
-          sed -i "s/imag.*mvc/image: ${ECRRepositoryUri}:latest" docker-compose.yml
+          EOF
+          
+          chmod 777 /CloudShirt/build_and_push.sh
+          cd /
+          ./CloudShirt/build_and_push.sh
 
-          cat <<EOF > /etc/systemd/system/docker-build.service
+          # sed -i "s/imag.*mvc/image: ${ECRRepositoryUri}:latest" docker-compose.yml
+
+          cat <<'EOF' > /etc/systemd/system/docker-build.service
           [Unit]
           Description=Build and push Docker image to ECR
           After=network.target docker.service
           Wants=docker.service
 
           [Service]
-          User=ec2-user
           WorkingDirectory=/CloudShirt
           ExecStart=/bin/bash /CloudShirt/build_and_push.sh
           Restart=always
+          StandardOutput=append:/var/log/docker-build.log
+          StandardError=append:/var/log/docker-build-error.log
           EOF
 
-          cat <<EOF > /etc/systemd/system/docker-build.timer
+          # Create the timer unit
+          cat <<'EOF' > /etc/systemd/system/docker-build.timer
           [Unit]
-          Description=Run Docker build and push every night
+          Description=Run Docker build and push every 5 minutes
 
           [Timer]
+          #OnBootSec=1min
+          #OnUnitActiveSec=10min
           OnCalendar=*-*-* 03:00:00
           Persistent=true
 
@@ -132,43 +148,19 @@ Resources:
           WantedBy=timers.target
           EOF
 
+          # Reload systemd to pick up new units
           systemctl daemon-reload
+
+          # Enable and start the timer
           systemctl enable --now docker-build.timer
+
+          # Optional: list all timers for verification
           systemctl list-timers --all
-
-          cat <<EOF > /CloudShirt/build_and_push.sh
-          #!/bin/bash
-
-          # Set variables
-          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
-          AWS_REGION=us-east-1
-          ECR_REPO="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/test-repository"
-
-          # Ensure Docker is running
-          sudo systemctl start docker
-
-          # Pull latest code from GitHub
-          cd /CloudShirt
-          git reset --hard
-          git pull origin main  # Change branch if needed
-
-          # Build the Docker image
-          sudo docker-compose build
-
-          # Authenticate with ECR and push image
-          aws ecr get-login-password --region $AWS_REGION | \
-          sudo docker login --username AWS --password-stdin ${ECRRepositoryUri}
-          sudo docker tag $(sudo docker images -q | head -n 1) ${ECRRepositoryUri}:latest
-          sudo docker push ${ECRRepositoryUri}:latest
-
-          EOF
-          chmod +x /CloudShirt/build_and_push.sh
 
         - EFS: !ImportValue EFS:EFS-DNS
           RDSENDPOINT: !ImportValue RDS:MSSQLServer
           BUCKET: !ImportValue S3Athena:PartnerDataBucket
           ECRRegistry: !ImportValue ECR:Registry
           ECRRepositoryUri: !ImportValue ECR:MyRepositoryUri
-
 
 
