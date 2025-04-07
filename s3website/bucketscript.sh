@@ -33,7 +33,6 @@ policy=$(cat <<EOF
 EOF
 )
 
-
 aws s3api put-bucket-website --bucket "$bucketname-$userid" --website-configuration file://website.json
 aws s3api put-public-access-block --bucket "$bucketname-$userid" --public-access-block-configuration '{"BlockPublicAcls":false}'
 aws s3api put-bucket-ownership-controls --bucket "$bucketname-$userid" --ownership-controls 'Rules=[{ObjectOwnership=ObjectWriter}]'

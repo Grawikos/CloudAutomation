@@ -7,6 +7,24 @@ Parameters:
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
 Resources:
+  MasterInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for master node"
+      VpcId: !ImportValue MyBase:VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
   BuildInstance:
     Type: AWS::EC2::Instance
     Properties:
@@ -19,11 +37,10 @@ Resources:
             VolumeType: gp3 
             DeleteOnTermination: true 
       KeyName: vockey
-      SubnetId: !ImportValue MyBase:PublicSubnet1
+      SubnetId: !ImportValue MyBase:PrivateSubnet1
       IamInstanceProfile: LabInstanceProfile
-      
       SecurityGroupIds:
-        - !ImportValue EFS:ApplicationSecurityGroup
+        - !Ref MasterInstanceSecurityGroup
       Tags:
         - Key: Name
           Value: BuildInstance

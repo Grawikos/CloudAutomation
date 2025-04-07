@@ -68,7 +68,7 @@ Resources:
                   ContentType="text/html",
                   ACL="public-read"
               )
-
+              
               return {"statusCode": 200, "body": "HTML file created"}
 
   S3LambdaPermission:

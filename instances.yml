@@ -6,6 +6,28 @@ Parameters:
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
 Resources:
+  WorkerInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for worker nodes: allows SSH and swarm communications"
+      VpcId: !ImportValue MyBase:VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
   AppLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -13,7 +35,7 @@ Resources:
         ImageId: !Ref LatestAmiId
         InstanceType: t2.small
         BlockDeviceMappings:
-          - DeviceName: "/dev/xvda" 
+          - DeviceName: "/dev/xvda"
             Ebs:
               VolumeSize: 16
               VolumeType: gp3 
@@ -22,7 +44,7 @@ Resources:
         IamInstanceProfile: 
           Name : LabInstanceProfile
         SecurityGroupIds:
-          - !ImportValue EFS:ApplicationSecurityGroup
+          - !Ref WorkerInstanceSecurityGroup
         UserData:
           Fn::Base64: !Sub 
           - |

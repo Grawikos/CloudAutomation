@@ -137,8 +137,6 @@ Resources:
         - Key: Name
           Value: PrivateSubnet2
 
-
-
 # Define outputs so values can be imported in another template
 Outputs:
   VPCRef:
