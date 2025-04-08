@@ -16,14 +16,14 @@ if [[ -z "$bucketname" ]]; then
 fi
 
 echo "Creating CloudFormation stacks..."
-aws cloudformation create-stack --stack-name MyBase --template-body file://networking.yml
+aws cloudformation create-stack --stack-name MyBase --template-body file://templates/networking.yml
 aws cloudformation wait stack-create-complete --stack-name MyBase
 
-aws cloudformation create-stack --stack-name RDS --template-body file://rds.yml
-aws cloudformation create-stack --stack-name NAT --template-body file://nat.yml
-aws cloudformation create-stack --stack-name EFS --template-body file://efs.yml
-aws cloudformation create-stack --stack-name S3Athena --template-body file://bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=$userid ParameterKey=BucketName,ParameterValue=$bucketname
-aws cloudformation create-stack --stack-name ECR --template-body file://ecr.yml
+aws cloudformation create-stack --stack-name RDS --template-body file://templates/rds.yml
+aws cloudformation create-stack --stack-name NAT --template-body file://templates/nat.yml
+aws cloudformation create-stack --stack-name EFS --template-body file://templates/efs.yml
+aws cloudformation create-stack --stack-name S3Athena --template-body file://templates/bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=$userid ParameterKey=BucketName,ParameterValue=$bucketname
+aws cloudformation create-stack --stack-name ECR --template-body file://templates/ecr.yml
 
 aws cloudformation wait stack-create-complete --stack-name ECR
 aws cloudformation wait stack-create-complete --stack-name EFS
@@ -31,13 +31,13 @@ aws cloudformation wait stack-create-complete --stack-name S3Athena
 aws cloudformation wait stack-create-complete --stack-name NAT
 aws cloudformation wait stack-create-complete --stack-name RDS
 
-aws cloudformation create-stack --stack-name MasterBuild --template-body file://buildMaster.yml
+aws cloudformation create-stack --stack-name MasterBuild --template-body file://templates/buildMaster.yml
 aws cloudformation wait stack-create-complete --stack-name MasterBuild
 
-aws cloudformation create-stack --stack-name Instances --template-body file://instances.yml
+aws cloudformation create-stack --stack-name Instances --template-body file://templates/instances.yml
 aws cloudformation wait stack-create-complete --stack-name Instances
 
-aws cloudformation create-stack --stack-name MonitoringInstance --template-body file://monitoringInstance.yml
+aws cloudformation create-stack --stack-name MonitoringInstance --template-body file://templates/monitoringInstance.yml
 aws cloudformation wait stack-create-complete --stack-name MonitoringInstance
 
 echo "Link to the website:"
