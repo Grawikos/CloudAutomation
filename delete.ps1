@@ -12,11 +12,10 @@ if (!$bucketname) {
     $bucketname="athena-data-bucket"
 } 
 
+aws ssm delete-parameter --name "/gcp/service-account/json"
+
 aws cloudformation delete-stack --stack-name MonitoringInstance
 aws cloudformation wait stack-delete-complete --stack-name MonitoringInstance
-
-
-
 
 aws cloudformation delete-stack --stack-name Instances
 aws cloudformation wait stack-delete-complete --stack-name Instances

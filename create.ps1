@@ -11,6 +11,8 @@ if (!$bucketname) {
     $bucketname="athena-data-bucket"
 } 
 
+aws ssm put-parameter --name "/gcp/service-account/json" --type "SecureString" --value file://gcp-service-account.json
+
 aws cloudformation create-stack --stack-name MyBase --template-body file://templates/networking.yml
 aws cloudformation wait stack-create-complete --stack-name MyBase
 

@@ -57,6 +57,7 @@ Resources:
           #APP
           yum install git -y
           yum install -y dotnet6.0
+          
           git clone https://github.com/looking4ward/CloudShirt.git
           yum install docker -y
           systemctl start docker
@@ -64,6 +65,18 @@ Resources:
           docker swarm init
           docker swarm join-token worker -q > /mnt/efs/swarm-token
           echo $HOSTNAME | grep -Eo '[[:digit:]]+-[[:digit:]]+-[[:digit:]]+-[[:digit:]]+' | head -n 1 | tr '-' '.' > mnt/efs/masterip.txt
+          
+          curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz
+          tar -xf google-cloud-cli-linux-x86_64.tar.gz
+          ./google-cloud-sdk/install.sh -q
+          export PATH="/root/.local/bin:/root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/lib/snapd/snap/bin:/root/.dotnet/tools:/root/google-cloud-sdk/bin:/google-cloud-sdk/bin"
+          gcloud config set project firstproject-450511 #############################################
+          aws ssm get-parameter --name "/gcp/service-account/json" --with-decryption --query 'Parameter.Value' --output text > /root/gcp-service-account.json
+          chmod 400 /root/gcp-service-account.json
+          export GOOGLE_APPLICATION_CREDENTIALS="/root/gcp-service-account.json"
+          gcloud auth activate-service-account --key-file=/root/gcp-service-account.json
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          
           sudo -i -u ec2-user bash <<EOF
               source ~/.bashrc  
               cd /
@@ -106,6 +119,10 @@ Resources:
           docker login --username AWS --password-stdin ${ECRRegistry}
           docker tag eshopwebmvc:latest ${ECRRepositoryUri}:latest
           docker push ${ECRRepositoryUri}:latest
+
+          docker tag eshopwebmvc:latest us-central1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest
+          docker push us-central1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest          
+
           docker image prune -af
           docker builder prune -af
           docker container prune -f
