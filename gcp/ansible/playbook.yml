@@ -1,0 +1,116 @@
+---
+- name: Install Kubernetes prerequisites
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repo
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Enable and start Docker
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add Kubernetes apt key
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Add Kubernetes apt repository
+      apt_repository:
+        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+
+    - name: Install Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+
+    - name: Mark hold
+      command: apt-mark hold kubelet kubeadm kubectl
+
+- name: Initialize Kubernetes Master
+  hosts: kube_master
+  become: yes
+  tasks:
+    - name: Initialize cluster
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16
+      register: kubeadm_init
+      ignore_errors: yes
+
+    - name: Create .kube directory
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: 0755
+
+    - name: Copy admin.conf
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: 0644
+
+    - name: Install flannel CNI
+      become: yes
+      command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Extract join command
+      shell: kubeadm token create --print-join-command
+      register: join_command
+      changed_when: false
+
+    - name: Save join command locally
+      delegate_to: localhost
+      copy:
+        content: "{{ join_command.stdout }}"
+        dest: ./join_command.sh
+
+- name: Join Worker Nodes
+  hosts: kube_nodes
+  become: yes
+  tasks:
+    - name: Copy join script from control node
+      copy:
+        src: ./join_command.sh
+        dest: /tmp/join_command.sh
+        mode: 0700
+
+    - name: Join cluster
+      command: bash /tmp/join_command.sh
+      ignore_errors: yes
