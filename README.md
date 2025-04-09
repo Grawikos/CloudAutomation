@@ -1,4 +1,5 @@
 # CloudAutomation
+## Version before adding google cloud and provisioning by terraform/ansible 
 
 ## How to Roll Out the Solution
 To rollout the solution first download all files or clone GitHub repository (https://github.com/Grawikos/CloudAutomation.git). The lab environment is expected, otherwise, a LabRole with LabInstanceProfile has to be created. AWS CLI has to be installed and set up with default region and credentials. In the folder with all files execute 
