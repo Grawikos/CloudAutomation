@@ -6,6 +6,7 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: "appimagerepository"
+    DeletionPolicy: Delete
 
 Outputs:
   ECRRegistry:
