@@ -4,7 +4,7 @@
     project_id: "{{ project_id }}"
     cluster_name: "{{ cluster_name }}"
     region: "{{ region }}"
-    cloudshirt_image: "europe-west1-docker.pkg.dev/notional-radio-450521-a4/my-app-repo/eshopwebmvc:latest"
+    cloudshirt_image: "europe-west1-docker.pkg.dev/{{ project_id }}/my-app-repo/eshopwebmvc:latest"
   tasks:
     - name: Authenticate kubectl with GKE cluster
       ansible.builtin.shell: |
