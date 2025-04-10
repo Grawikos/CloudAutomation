@@ -1,6 +1,6 @@
 param($GCEALB)
 
-aws cloudformation create-stack --stack-name ReverseProxy --template-body file://AWS_CF_Templates/ReverseProxy.yml --parameters ParameterKey=GCEALB,ParameterValue=$GCEALB
+aws cloudformation create-stack --stack-name ReverseProxy --template-body file://infrastracture/AWS_CF_Templates/ReverseProxy.yml --parameters ParameterKey=GCEALB,ParameterValue=$GCEALB
 aws cloudformation wait stack-create-complete --stack-name ReverseProxy
 
 
