@@ -1,45 +1,7 @@
-# .\delete.ps1 -userid "089087866202"
-param($userid,$bucketname)
-if (!$userid) {
-    $userid="$(aws sts get-caller-identity --query Account --output text)"
-} elseif (!($userid -match "[0-9]{12}")) {
-    echo 'wrong format, -userid "[0-9]{12}" expected'
-    Break
-}
+$userid = (aws sts get-caller-identity --query "Account" --output text).Trim()
 
-if (!$bucketname) {
-    echo "-bucketname expected, defaulting to athena-data-bucket"
-    $bucketname="athena-data-bucket"
-} 
-
-aws ssm delete-parameter --name "/gcp/service-account/json"
-
-aws cloudformation delete-stack --stack-name MonitoringInstance
-aws cloudformation wait stack-delete-complete --stack-name MonitoringInstance
-
-aws cloudformation delete-stack --stack-name Instances
-aws cloudformation wait stack-delete-complete --stack-name Instances
-
-aws cloudformation delete-stack --stack-name MasterBuild
-aws cloudformation wait stack-delete-complete --stack-name MasterBuild
-
-aws s3 rm s3://$bucketname-$userid --recursive
-aws cloudformation delete-stack --stack-name S3Athena 
+aws s3 rm "s3://athena-data-bucket-$userid" --recursive
 aws ecr delete-repository --repository-name appimagerepository --force
-aws cloudformation delete-stack --stack-name ECR
-aws cloudformation delete-stack --stack-name NAT
-aws cloudformation delete-stack --stack-name EFS 
-aws cloudformation delete-stack --stack-name RDS 
 
-aws cloudformation wait stack-delete-complete --stack-name NAT
-aws cloudformation wait stack-delete-complete --stack-name S3Athena
-aws cloudformation wait stack-delete-complete --stack-name ECR
-aws cloudformation wait stack-delete-complete --stack-name EFS
-aws cloudformation wait stack-delete-complete --stack-name RDS
+terraform destroy -auto-approve
 
-aws cloudformation delete-stack --stack-name MyBase
-aws cloudformation wait stack-delete-complete --stack-name MyBase
-
-
-
-[console]::beep(900, 1000)
