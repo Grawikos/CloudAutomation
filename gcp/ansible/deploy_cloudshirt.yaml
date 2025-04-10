@@ -3,7 +3,7 @@
   vars:
     project_id: "notional-radio-450521-a4"
     cluster_name: "my-gke-cluster"
-    region: "europe-west1"
+    region: "europe-west1-b"
   tasks:
     - name: Authenticate kubectl with GKE cluster
       ansible.builtin.shell: |

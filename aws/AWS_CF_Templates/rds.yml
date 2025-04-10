@@ -14,8 +14,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 1433
           ToPort: 1433
-          CidrIp: 34.159.6.61/24 # cidr range for GKE
-
+          CidrIp: 0.0.0.0/0
 
   DBSubnetGroup:
     Type: "AWS::RDS::DBSubnetGroup"

@@ -69,7 +69,7 @@ resource "google_container_node_pool" "primary_nodes" {
   location = google_container_cluster.primary.location
   cluster  = google_container_cluster.primary.name
 
-  node_count = 1
+  node_count = 3
 
   node_config {
     machine_type = "e2-medium"
@@ -79,7 +79,6 @@ resource "google_container_node_pool" "primary_nodes" {
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
-
 
 resource "google_artifact_registry_repository" "docker_repo" {
   location      = var.region
