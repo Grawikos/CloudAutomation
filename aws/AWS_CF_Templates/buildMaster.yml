@@ -5,6 +5,10 @@ Parameters:
   LatestAmiId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+  GCEProjectName:
+    Type: String
+  GCEServiceAccFileName:
+    Type: String
 
 Resources:
   MasterInstanceSecurityGroup:
@@ -70,9 +74,9 @@ Resources:
           tar -xf google-cloud-cli-linux-x86_64.tar.gz
           ./google-cloud-sdk/install.sh -q
           export PATH="/root/.local/bin:/root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/lib/snapd/snap/bin:/root/.dotnet/tools:/root/google-cloud-sdk/bin:/google-cloud-sdk/bin"
-          gcloud config set project firstproject-450511 #############################################
-          aws ssm get-parameter --name "/gcp/service-account/json" --with-decryption --query 'Parameter.Value' --output text > /root/gcp-service-account.json
-          chmod 400 /root/gcp-service-account.json
+          gcloud config set project ${GCEProjectName} #############################################
+          aws ssm get-parameter --name "/gcp/service-account/json" --with-decryption --query 'Parameter.Value' --output text > /root/${GCEServiceAccFileName}
+          chmod 400 /root/${GCEServiceAccFileName}
           
           sudo -i -u ec2-user bash <<EOF
               source ~/.bashrc  
@@ -117,11 +121,11 @@ Resources:
           docker tag eshopwebmvc:latest ${ECRRepositoryUri}:latest
           docker push ${ECRRepositoryUri}:latest
           
-          export GOOGLE_APPLICATION_CREDENTIALS="/root/gcp-service-account.json"
-          gcloud auth activate-service-account --key-file=/root/gcp-service-account.json
+          export GOOGLE_APPLICATION_CREDENTIALS="/root/${GCEServiceAccFileName}"
+          gcloud auth activate-service-account --key-file=/root/${GCEServiceAccFileName}
           gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
-          docker tag eshopwebmvc:latest europe-west1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest
-          docker push europe-west1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest          
+          docker tag eshopwebmvc:latest europe-west1-docker.pkg.dev/${GCEProjectName}/my-app-repo/eshopwebmvc:latest
+          docker push europe-west1-docker.pkg.dev/${GCEProjectName}/my-app-repo/eshopwebmvc:latest          
 
           docker image prune -af
           docker builder prune -af
@@ -179,5 +183,7 @@ Resources:
           BUCKET: !ImportValue S3Athena:PartnerDataBucket
           ECRRegistry: !ImportValue ECR:Registry
           ECRRepositoryUri: !ImportValue ECR:MyRepositoryUri
+          GCEProjectName: !Ref GCEProjectName
+          GCEServiceAccFileName: !Ref GCEServiceAccFileName
 
 

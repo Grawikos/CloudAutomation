@@ -43,10 +43,12 @@ module "ecr" {
 }
 
 module "buildmaster" {
-  source        = "./modules/buildInstance"
-  stack_name    = "MasterBuild"
-  template_path = "AWS_CF_Templates/buildMaster.yml"
-  depends_on    = [module.networking, module.rds, module.s3athena, module.ecr, module.nat, aws_ssm_parameter.gcp_service_account]
+  source                              = "./modules/buildInstance"
+  stack_name                          = "MasterBuild"
+  template_path                       = "AWS_CF_Templates/buildMaster.yml"
+  gce_project                         = var.gce_project
+  gce_service_acc_credential_filename = var.gce_service_acc_credential_filename
+  depends_on                          = [module.networking, module.rds, module.s3athena, module.ecr, module.nat, aws_ssm_parameter.gcp_service_account]
 }
 
 resource "time_sleep" "wait_300s" {
@@ -70,8 +72,8 @@ module "monitoring" {
 }
 
 resource "aws_ssm_parameter" "gcp_service_account" {
-  name        = "/gcp/service-account/json"
-  type        = "SecureString"
-  value       = file("gcp-service-account.json")
-  overwrite   = true  
+  name      = "/gcp/service-account/json"
+  type      = "SecureString"
+  value     = file(var.gce_service_acc_credential_filename)
+  overwrite = true
 }

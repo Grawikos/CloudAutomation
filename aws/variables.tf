@@ -15,3 +15,8 @@ variable "gce_service_acc_credential_filename" {
   type        = string
   default     = "gcp-service-account.json"
 }
+
+variable "gce_project" {
+  description = "name of your project"
+  type        = string
+}
