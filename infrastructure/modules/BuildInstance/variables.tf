@@ -8,7 +8,7 @@ variable "template_path" {
   type        = string
 }
 
-variable "gce_project" {
+variable "project_id" {
   description = "The GCE project name"
   type        = string
 }

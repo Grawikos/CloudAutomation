@@ -3,7 +3,7 @@ resource "aws_cloudformation_stack" "buildmaster" {
   template_body = file(var.template_path)
 
   parameters = {
-    GCEProjectName = var.gce_project
+    GCEProjectName = var.project_id  
     GCEServiceAccFileName = var.gce_service_acc_credential_filename
   }
 }
