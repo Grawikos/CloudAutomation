@@ -1,0 +1,104 @@
+- name: Deploy CloudShirt app to GKE and set up Kubernetes resources
+  hosts: localhost
+  vars:
+    project_id: "{{ project_id }}"
+    cluster_name: "{{ cluster_name }}"
+    region: "{{ region }}"
+    cloudshirt_image: "europe-west1-docker.pkg.dev/notional-radio-450521-a4/my-app-repo/eshopwebmvc:latest"
+  tasks:
+    - name: Authenticate kubectl with GKE cluster
+      ansible.builtin.shell: |
+        gcloud container clusters get-credentials {{ cluster_name }} --region {{ region }} --project {{ project_id }}
+      environment:
+        CLOUDSDK_CORE_PROJECT: "{{ project_id }}"
+        
+    - name: Generate Kubernetes deployment file for CloudShirt app
+      copy:
+        dest: /tmp/cloudshirt-deployment.yaml
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: cloudshirt-deployment
+          spec:
+            replicas: 5
+            selector:
+              matchLabels:
+                app: cloudshirt
+            template:
+              metadata:
+                labels:
+                  app: cloudshirt
+              spec:
+                containers:
+                - name: cloudshirt
+                  image: {{ cloudshirt_image }}
+                  ports:
+                  - containerPort: 80
+                  env:
+                  - name: ASPNETCORE_ENVIRONMENT
+                    value: "Docker"
+                  - name: ASPNETCORE_URLS
+                    value: "http://+:80"
+                  - name: ConnectionStrings__DefaultConnection
+                    value: "Server=sqlserver-service;User=sa;Password=praktyka;Database=Microsoft.eShopOnWebDb"
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: sqlserver-deployment
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: sqlserver
+            template:
+              metadata:
+                labels:
+                  app: sqlserver
+              spec:
+                containers:
+                - name: sqlserver
+                  image: mcr.microsoft.com/azure-sql-edge
+                  ports:
+                  - containerPort: 1433
+                  env:
+                  - name: SA_PASSWORD
+                    value: "praktyka"
+                  - name: ACCEPT_EULA
+                    value: "Y"
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: cloudshirt-service
+          spec:
+            type: LoadBalancer
+            selector:
+              app: cloudshirt
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 80
+            sessionAffinity: ClientIP
+            sessionAffinityConfig:
+              clientIP:
+                timeoutSeconds: 2137
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: sqlserver-service
+          spec:
+            selector:
+              app: sqlserver
+            ports:
+              - protocol: TCP
+                port: 1433
+                targetPort: 1433
+
+    - name: Apply Kubernetes resources
+      kubernetes.core.k8s:
+        state: present
+        namespace: default
+        definition: "{{ lookup('file', '/tmp/cloudshirt-deployment.yaml') }}"

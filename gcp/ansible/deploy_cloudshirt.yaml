@@ -1,9 +1,9 @@
 - name: Deploy CloudShirt app to GKE
   hosts: localhost
   vars:
-    project_id: "notional-radio-450521-a4"
-    cluster_name: "my-gke-cluster"
-    region: "europe-west1-b"
+    project_id: "{{ project_id }}"
+    cluster_name: "{{ cluster_name }}"
+    region: "{{ region }}"
   tasks:
     - name: Authenticate kubectl with GKE cluster
       ansible.builtin.shell: |
