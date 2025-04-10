@@ -21,3 +21,5 @@ week1/.DS_Store
 
 **/inventory.ini
 *.json
+
+vars.yml
