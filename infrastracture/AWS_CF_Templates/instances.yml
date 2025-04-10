@@ -101,7 +101,7 @@ Resources:
 
             [Timer]
             OnBootSec=1min
-            OnUnitActiveSec=10min
+            OnUnitActiveSec=60min
             Persistent=true
 
             [Install]
