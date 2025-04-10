@@ -1,17 +1,17 @@
 resource "google_compute_network" "vpc_network" {
-  name                    = "k8s-vpc"
+  name                    = "gke-vpc"
   auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  name          = "k8s-subnet"
+  name          = "gke-subnet"
   ip_cidr_range = "10.0.0.0/24"
-  region        = "europe-west1"
+  region        = var.region
   network       = google_compute_network.vpc_network.name
 }
 
 resource "google_compute_firewall" "allow-internal" {
-  name    = "k8s-allow-internal"
+  name    = "gke-allow-internal"
   network = google_compute_network.vpc_network.name
 
   allow {
@@ -24,11 +24,15 @@ resource "google_compute_firewall" "allow-internal" {
     ports    = ["0-65535"]
   }
 
+  allow {
+    protocol = "icmp"
+  }
+
   source_ranges = ["10.0.0.0/24"]
 }
 
-resource "google_compute_firewall" "allow-ssh" {
-  name    = "k8s-allow-ssh"
+resource "google_compute_firewall" "allow-api" {
+  name    = "gke-allow-api"
   network = google_compute_network.vpc_network.name
 
   allow {
@@ -36,59 +40,24 @@ resource "google_compute_firewall" "allow-ssh" {
     ports    = ["22"]
   }
 
+  allow {
+    protocol = "tcp"
+    ports    = ["443"]
+  }
+
   source_ranges = ["0.0.0.0/0"]
-}
-
-resource "google_compute_instance" "kubemaster" {
-  name         = "kubemaster"
-  machine_type = "e2-medium"
-  zone         = "europe-west1-b"
-
-  boot_disk {
-    initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2204-lts"
-    }
-  }
-
-  network_interface {
-    network    = google_compute_network.vpc_network.name
-    subnetwork = google_compute_subnetwork.subnet.name
-    access_config {}
-  }
-
-  tags = ["k8s"]
-}
-
-resource "google_compute_instance" "node1" {
-  name         = "node1"
-  machine_type = "e2-medium"
-  zone         = "europe-west1-b"
-
-  boot_disk {
-    initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2004-lts"
-    }
-  }
-
-  network_interface {
-    network    = google_compute_network.vpc_network.name
-    subnetwork = google_compute_subnetwork.subnet.name
-    access_config {}
-  }
-
-  tags = ["k8s"]
 }
 
 resource "google_container_cluster" "primary" {
   name     = "my-gke-cluster"
   location = var.region
 
+  network    = google_compute_network.vpc_network.name
+  subnetwork = google_compute_subnetwork.subnet.name
+
   remove_default_node_pool = true
   deletion_protection      = false
   initial_node_count       = 1
-
-  network    = "default"
-  subnetwork = "default"
 
   workload_identity_config {
     workload_pool = "${var.project_id}.svc.id.goog"
@@ -99,7 +68,6 @@ resource "google_container_node_pool" "primary_nodes" {
   name     = "my-node-pool"
   location = google_container_cluster.primary.location
   cluster  = google_container_cluster.primary.name
-
 
   node_count = 2
 
