@@ -73,9 +73,6 @@ Resources:
           gcloud config set project firstproject-450511 #############################################
           aws ssm get-parameter --name "/gcp/service-account/json" --with-decryption --query 'Parameter.Value' --output text > /root/gcp-service-account.json
           chmod 400 /root/gcp-service-account.json
-          export GOOGLE_APPLICATION_CREDENTIALS="/root/gcp-service-account.json"
-          gcloud auth activate-service-account --key-file=/root/gcp-service-account.json
-          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
           
           sudo -i -u ec2-user bash <<EOF
               source ~/.bashrc  
@@ -119,9 +116,12 @@ Resources:
           docker login --username AWS --password-stdin ${ECRRegistry}
           docker tag eshopwebmvc:latest ${ECRRepositoryUri}:latest
           docker push ${ECRRepositoryUri}:latest
-
-          docker tag eshopwebmvc:latest us-central1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest
-          docker push us-central1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest          
+          
+          export GOOGLE_APPLICATION_CREDENTIALS="/root/gcp-service-account.json"
+          gcloud auth activate-service-account --key-file=/root/gcp-service-account.json
+          gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+          docker tag eshopwebmvc:latest europe-west1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest
+          docker push europe-west1-docker.pkg.dev/firstproject-450511/my-app-repo/eshopwebmvc:latest          
 
           docker image prune -af
           docker builder prune -af

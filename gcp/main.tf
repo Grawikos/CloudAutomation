@@ -79,8 +79,42 @@ resource "google_compute_instance" "node1" {
   tags = ["k8s"]
 }
 
+resource "google_container_cluster" "primary" {
+  name     = "my-gke-cluster"
+  location = var.region
+
+  remove_default_node_pool = true
+  deletion_protection      = false
+  initial_node_count       = 1
+
+  network    = "default"
+  subnetwork = "default"
+
+  workload_identity_config {
+    workload_pool = "${var.project_id}.svc.id.goog"
+  }
+}
+
+resource "google_container_node_pool" "primary_nodes" {
+  name     = "my-node-pool"
+  location = google_container_cluster.primary.location
+  cluster  = google_container_cluster.primary.name
+
+
+  node_count = 2
+
+  node_config {
+    machine_type = "e2-medium"
+    disk_size_gb = 40 # default for micro is 100GB, not needed
+    disk_type    = "pd-standard"
+
+    oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+}
+
+
 resource "google_artifact_registry_repository" "docker_repo" {
-  location      = "europe-west1"
+  location      = var.region
   repository_id = "my-app-repo"
   format        = "DOCKER"
 }

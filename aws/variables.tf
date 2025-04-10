@@ -1,6 +1,6 @@
 variable "shared_credentials_file" {
-  #description = "~/.aws/credentials"
-  default = "/Users/maciek/.aws/credentials"
+  description = "Path to file with credentials, e.g. /Users/USERNAME/.aws/credentials"
+  # default = "/Users/maciek/.aws/credentials"
 }
 variable "region" {
   default = "us-east-1"
@@ -8,4 +8,10 @@ variable "region" {
 
 variable "profile" {
   default = "default"
+}
+
+variable "gce_service_acc_credential_filename" {
+  description = "filename for service account credentials"
+  type        = string
+  default     = "gcp-service-account.json"
 }

@@ -46,19 +46,20 @@ module "buildmaster" {
   source        = "./modules/buildInstance"
   stack_name    = "MasterBuild"
   template_path = "AWS_CF_Templates/buildMaster.yml"
-  depends_on    = [module.networking, module.rds, module.s3athena, module.ecr, module.nat]
+  depends_on    = [module.networking, module.rds, module.s3athena, module.ecr, module.nat, aws_ssm_parameter.gcp_service_account]
 }
 
-resource "time_sleep" "wait_120s" {
-  create_duration = "120s"
+resource "time_sleep" "wait_300s" {
+  create_duration = "300s"
   depends_on      = [module.buildmaster]
 }
+
 
 module "appautoscaling" {
   source        = "./modules/WorkerInstances"
   stack_name    = "Instances"
   template_path = "AWS_CF_Templates/instances.yml"
-  depends_on    = [time_sleep.wait_120s, module.efs]
+  depends_on    = [time_sleep.wait_300s, module.efs]
 }
 
 module "monitoring" {
@@ -66,4 +67,11 @@ module "monitoring" {
   stack_name    = "MonitoringInstance"
   template_path = "AWS_CF_Templates/MonitoringInstance.yml"
   depends_on    = [module.appautoscaling, module.networking, module.nat, module.efs]
+}
+
+resource "aws_ssm_parameter" "gcp_service_account" {
+  name        = "/gcp/service-account/json"
+  type        = "SecureString"
+  value       = file("gcp-service-account.json")
+  overwrite   = true  
 }

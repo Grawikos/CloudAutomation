@@ -13,20 +13,7 @@ if (!$bucketname) {
 
 aws ssm put-parameter --name "/gcp/service-account/json" --type "SecureString" --value file://gcp-service-account.json
 
-aws cloudformation create-stack --stack-name MyBase --template-body file://templates/networking.yml
-aws cloudformation wait stack-create-complete --stack-name MyBase
 
-aws cloudformation create-stack --stack-name RDS --template-body file://templates/rds.yml
-aws cloudformation create-stack --stack-name NAT --template-body file://templates/nat.yml
-aws cloudformation create-stack --stack-name EFS --template-body file://templates/efs.yml
-aws cloudformation create-stack --stack-name S3Athena --template-body file://templates/bucket.yml --parameters ParameterKey=LabAccountID,ParameterValue=$userid ParameterKey=BucketName,ParameterValue=$bucketname
-aws cloudformation create-stack --stack-name ECR --template-body file://templates/ecr.yml
-
-aws cloudformation wait stack-create-complete --stack-name ECR 
-aws cloudformation wait stack-create-complete --stack-name EFS
-aws cloudformation wait stack-create-complete --stack-name S3Athena
-aws cloudformation wait stack-create-complete --stack-name NAT
-aws cloudformation wait stack-create-complete --stack-name RDS
 
 aws cloudformation create-stack --stack-name MasterBuild --template-body file://templates/buildMaster.yml
 aws cloudformation wait stack-create-complete --stack-name MasterBuild

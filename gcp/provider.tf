@@ -1,6 +1,6 @@
 provider "google" {
-  credentials = file("notional-radio-450521-a4-2f60afb9c865.json")
-  project     = "notional-radio-450521-a4"
+  credentials = file(var.credential_filename)
+  project     = var.project_id
   region      = "europe-west1"
   zone        = "europe-west1-b"
 }
