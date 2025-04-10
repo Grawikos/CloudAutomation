@@ -11,6 +11,9 @@ Resources:
           FromPort: 1433
           ToPort: 1433
           CidrIp: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: RDSSG
 
   DBSubnetGroup:
     Type: "AWS::RDS::DBSubnetGroup"
