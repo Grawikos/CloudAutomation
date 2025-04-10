@@ -1,0 +1,18 @@
+- name: Deploy CloudShirt app to GKE
+  hosts: localhost
+  vars:
+    project_id: "notional-radio-450521-a4"
+    cluster_name: "my-gke-cluster"
+    region: "europe-west1"
+  tasks:
+    - name: Authenticate kubectl with GKE cluster
+      ansible.builtin.shell: |
+        gcloud container clusters get-credentials {{ cluster_name }} --region {{ region }} --project {{ project_id }}
+      environment:
+        CLOUDSDK_CORE_PROJECT: "{{ project_id }}"
+
+    - name: Apply Kubernetes deployment
+      kubernetes.core.k8s:
+        state: present
+        namespace: default
+        definition: "{{ lookup('file', 'k8s/cloudshirt-deployment.yaml') }}"
