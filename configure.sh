@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Execute the security group and reverse proxy setup scripts
 if ./fillsecgroup.sh { here paste nodes ip like "111.111.111.111/32" "111.111.111.111/32" "111.111.111.111/32"}; then
   echo "Security group configured successfully"
