@@ -84,7 +84,7 @@ Resources:
           
 
 Outputs:
-  PMonitoringInstancePublicIP:
+  ProxyInstancePublicIP:
     Description: "Public IP of the Proxy Instance"
     Value: !GetAtt ReverseProxyInstance.PublicIp
     Export:

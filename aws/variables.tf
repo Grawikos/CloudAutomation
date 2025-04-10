@@ -19,3 +19,8 @@ variable "gce_project" {
   description = "name of your project"
   type        = string
 }
+
+variable "gce_alb" {
+  description = "alb IPv4 in GKE"
+  type        = string
+}
