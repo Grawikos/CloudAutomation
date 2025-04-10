@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 Instance for NginxProxy
+
+Parameters:
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+  GCEALB:
+    Type: String
+
+Resources:
+  ProxySG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access from the Bastion Host
+      VpcId: !ImportValue MyBase:VPC
+      IamInstanceProfile: 
+        Name : LabInstanceProfile
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MonitoringInstanceSG
+
+  ReverseProxyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.small
+      ImageId: !Ref LatestAmiId
+      KeyName: vockey
+      IamInstanceProfile: LabInstanceProfile
+      SubnetId: !ImportValue MyBase:PublicSubnet1
+      SecurityGroupIds:
+        - !Ref ProxySG
+      Tags:
+        - Key: Name
+          Value: ProxyInstance
+      UserData:
+        Fn::Base64: !Sub 
+        - |
+          #!/bin/bash
+          yum update -y
+          yum install -y nginx  
+          systemctl start nginx
+          systemctl enable nginx
+          mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
+          cat > /etc/nginx/nginx.conf <<EOF
+          events {}
+
+          http {
+              upstream backend_servers {
+                  ip_hash;
+                  server ${ALB_AWS};
+                  server ${ALB_GCE};
+              }
+
+              server {
+                  listen 80;
+
+                  location / {
+                      proxy_pass http://backend_servers;
+                      proxy_set_header Host $host;
+                      proxy_set_header X-Real-IP $remote_addr;
+                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto $scheme;
+                  }
+              }
+          }
+          EOF
+          systemctl restart nginx
+
+        - ALB_AWS: !ImportValue Instances:ApplicationLoadBalancer:DNS
+          ALB_GCE: !Ref GCEALB
+          
+
+Outputs:
+  PMonitoringInstancePublicIP:
+    Description: "Public IP of the Proxy Instance"
+    Value: !GetAtt ReverseProxyInstance.PublicIp
+    Export:
+      Name: !Join [ ":", [ !Ref "AWS::StackName", "ProxyPublicIP" ] ]
+
