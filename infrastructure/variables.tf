@@ -31,3 +31,9 @@ variable "cluster_name" {
   type        = string
   default     = "my-gke-cluster"
 }
+
+variable "zone_gce" {
+  description = "zone for gce"
+  type        = string
+  default     = "europe-west1-4"
+}

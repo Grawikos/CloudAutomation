@@ -89,7 +89,7 @@ resource "google_artifact_registry_repository" "docker_repo" {
 resource "null_resource" "ansible_loadbalancer" {
   provisioner "local-exec" {
     command = <<EOT
-      ansible-playbook ansible/get_nodes_ip.yaml --extra-vars "project_id=${var.project_id} cluster_name=${var.cluster_name} region=${var.region_gce}"
+      ansible-playbook ansible/get_nodes_ip.yaml --extra-vars "project_id=${var.project_id} cluster_name=${var.cluster_name} region=${var.zone_gce}"
     EOT
   }
 

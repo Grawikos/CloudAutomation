@@ -25,10 +25,3 @@ else
   echo "CloudShirt deployment failed"
   exit 1
 fi
-
-if ansible-playbook ansible/collect-logs.yaml -e "@vars.yml"; then
-  echo "Logs collected successfully"
-else
-  echo "Log collection failed"
-  exit 1
-fi
