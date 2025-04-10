@@ -11,7 +11,7 @@
       environment:
         CLOUDSDK_CORE_PROJECT: "{{ project_id }}"
 
-    - name: Apply Kubernetes deployment
+    - name: Apply CloudShirt + SQL Kubernetes deployments and services
       kubernetes.core.k8s:
         state: present
         namespace: default
