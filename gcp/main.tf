@@ -78,3 +78,9 @@ resource "google_compute_instance" "node1" {
 
   tags = ["k8s"]
 }
+
+resource "google_artifact_registry_repository" "docker_repo" {
+  location      = "europe-west1"
+  repository_id = "my-app-repo"
+  format        = "DOCKER"
+}
