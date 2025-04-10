@@ -1,50 +1,71 @@
----
-- name: Install Kubernetes prerequisites
+- name: Setup Kubernetes Cluster
   hosts: all
   become: yes
   tasks:
-    - name: Install dependencies
+    - name: Update package index and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Load required kernel modules
+      copy:
+        dest: /etc/modules-load.d/containerd.conf
+        content: |
+          overlay
+          br_netfilter
+      notify: Reload sysctl system
+
+    - name: Load overlay module
+      modprobe:
+        name: overlay
+        state: present
+
+    - name: Load br_netfilter module
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Set kernel parameters
+      sysctl:
+        sysctl_set: yes
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: 1 }
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: 1 }
+        - { name: 'net.ipv4.ip_forward', value: 1 }
+      notify: Reload sysctl system
+
+    - name: Prepare apt for Kubernetes
       apt:
         name:
           - apt-transport-https
           - ca-certificates
           - curl
-          - gnupg
-          - lsb-release
-        state: present
-        update_cache: yes
-
-    - name: Add Docker GPG key
-      apt_key:
-        url: https://download.docker.com/linux/ubuntu/gpg
+          - gnupg2
         state: present
 
-    - name: Add Docker repo
-      apt_repository:
-        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
-        state: present
+    - name: Add Kubernetes keyring directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
 
-    - name: Install Docker
+    - name: Add Kubernetes repository key
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes APT repository
+      shell: echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+      args:
+        creates: /etc/apt/sources.list.d/kubernetes.list
+
+    - name: Update the package list
       apt:
-        name: docker.io
-        state: present
         update_cache: yes
-
-    - name: Enable and start Docker
-      systemd:
-        name: docker
-        enabled: yes
-        state: started
-
-    - name: Add Kubernetes apt key
-      apt_key:
-        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
-        state: present
-
-    - name: Add Kubernetes apt repository
-      apt_repository:
-        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
-        state: present
 
     - name: Install Kubernetes packages
       apt:
@@ -53,21 +74,69 @@
           - kubeadm
           - kubectl
         state: present
-        update_cache: yes
 
-    - name: Mark hold
+    - name: Hold Kubernetes packages
       command: apt-mark hold kubelet kubeadm kubectl
+
+    - name: Disable swap
+      command: swapoff -a
+      tags: swap
+
+    - name: Remove swap from fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^(.+\\s+swap\\s+.+)'
+        replace: '# \\1'
+        backup: yes
+      tags: swap
+
+    - name: Install containerd
+      apt:
+        name: containerd
+        state: present
+
+    - name: Create containerd configuration directory
+      file:
+        path: /etc/containerd
+        state: directory
+
+    - name: Generate containerd default configuration
+      shell: |
+        containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: Set systemd as cgroup driver in containerd
+      lineinfile:
+        dest: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        line: 'SystemdCgroup = true'
+
+    - name: Restart and enable containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+
+    - name: Verify containerd is running
+      command: systemctl is-active --quiet containerd
+
+    - name: Enable and start kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
 
 - name: Initialize Kubernetes Master
   hosts: kube_master
   become: yes
   tasks:
-    - name: Initialize cluster
+    - name: Initialize Kubernetes cluster using kubeadm
       command: kubeadm init --pod-network-cidr=10.244.0.0/16
       register: kubeadm_init
       ignore_errors: yes
 
-    - name: Create .kube directory
+    - name: Set up local kubeconfig
       file:
         path: /home/ubuntu/.kube
         state: directory
@@ -75,7 +144,7 @@
         group: ubuntu
         mode: 0755
 
-    - name: Copy admin.conf
+    - name: Copy Kubernetes admin.conf
       copy:
         src: /etc/kubernetes/admin.conf
         dest: /home/ubuntu/.kube/config
@@ -84,33 +153,17 @@
         group: ubuntu
         mode: 0644
 
-    - name: Install flannel CNI
-      become: yes
-      command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+    - name: Apply pod network add-on (Flannel)
+      shell: |
+        kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
 
-    - name: Extract join command
-      shell: kubeadm token create --print-join-command
+    - name: Retrieve and print join command
+      command:
+        cmd: kubeadm token create --print-join-command
       register: join_command
-      changed_when: false
 
-    - name: Save join command locally
-      delegate_to: localhost
-      copy:
-        content: "{{ join_command.stdout }}"
-        dest: ./join_command.sh
-
-- name: Join Worker Nodes
-  hosts: kube_nodes
-  become: yes
-  tasks:
-    - name: Copy join script from control node
-      copy:
-        src: ./join_command.sh
-        dest: /tmp/join_command.sh
-        mode: 0700
-
-    - name: Join cluster
-      command: bash /tmp/join_command.sh
-      ignore_errors: yes
+  handlers:
+    - name: Reload sysctl system
+      command: sysctl --system
