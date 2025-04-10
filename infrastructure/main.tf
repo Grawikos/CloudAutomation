@@ -145,7 +145,7 @@ module "buildmaster" {
   stack_name                          = "MasterBuild"
   template_path                       = "AWS_CF_Templates/buildMaster.yml"
   depends_on                          = [module.networking, module.rds, module.s3athena, module.ecr, module.nat, aws_ssm_parameter.gcp_service_account, google_artifact_registry_repository.docker_repo]
-  gce_project                         = var.gce_project
+  project_id                          = var.project_id 
   gce_service_acc_credential_filename = var.gce_service_acc_credential_filename
 }
 
