@@ -50,7 +50,7 @@ resource "google_compute_firewall" "allow-api" {
 
 resource "google_container_cluster" "primary" {
   name     = "my-gke-cluster"
-  location = "${var.region_gce}-b" # zonal instead of regional
+  location = "${var.zone_gce}"
 
   network    = google_compute_network.vpc_network.name
   subnetwork = google_compute_subnetwork.subnet.name

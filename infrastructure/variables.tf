@@ -35,5 +35,5 @@ variable "cluster_name" {
 variable "zone_gce" {
   description = "zone for gce"
   type        = string
-  default     = "europe-west1-4"
+  default     = "europe-west1-b"
 }
